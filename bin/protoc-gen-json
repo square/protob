@@ -14,24 +14,25 @@ process.stdin.on("data", function(data) {
 
 process.stdin.on("end", function(){
   buffer.flip();
+
   var Request  = registry["google.protobuf.compiler.CodeGeneratorRequest"];
   var Response = registry["google.protobuf.compiler.CodeGeneratorResponse"];
   var File     = registry["google.protobuf.compiler.CodeGeneratorResponse"];
 
   var request  = Request.decode(buffer)
   var response = new Response();
-  file = new File({ name: "compiled-protos.json", content: JSON.stringify(request.proto_file, null, 2)});
-  response.file = [file];
+  response.file = [];
 
-  console.error(Util.inspect(response.allFields, { depth: null, colors: true}));
+  request.proto_file.forEach(function(file){
+    var f = new File();
+    f.name    = file.name.replace(/\.proto$/, '.json');
+    f.content = JSON.stringify([file], null, 2);
+    response.file.push(f);
+  });
 
   var result = response.encode().toBuffer();
-  // console.error(result);
 
-  console.error( Util.inspect( Response.decode(response.encode()) ) );
-
-  process.stdout.write(result, function(){ console.error("DONE:", arguments); });
-  console.error(result);
+  process.stdout.write(result)
 });
 
 
