@@ -7,5 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Daniel Neighman",
-  "license": "BSD-2-Clause"
+  "license": "BSD-2-Clause",
+  "dependencies": {
+    "underscore": "~1.5.2",
+    "bytebuffer": "~2.0.0"
+  }
 }
