@@ -1,0 +1,36 @@
+#!/usr/bin/env node
+
+var start = Date.now();
+var Protofile = require('../lib/compiler/protofile').Protofile;
+var Path = require('path');
+var exec = require('child_process').exec;
+
+Protofile.protoPaths.push("./protos.json");
+
+var protofile = new Protofile();
+
+console.error("Compiling protos");
+
+protofile.resolve().then( function(){
+  console.error("Resolved Protofiles");
+  cmd = ["protoc"];
+  cmd.push("--plugin=" + Path.join(__dirname, "protoc-gen-json"));
+  cmd.push("--json_out=" + Protofile.outputDir);
+
+  protofile.sources.forEach(function(source) {
+    cmd.push("-I=" + Path.resolve(source.location));
+  });
+
+  protofile.files().forEach(function(file) { cmd.push(Path.resolve(file)) });
+
+  exec( cmd.join(" "), function(error, stdout, stderr) {
+    if( error ) {
+      console.error(stderr);
+    } else {
+      console.error("Done. Took", Date.now() - start, "ms");
+    }
+  });
+
+}, function(err) {
+  console.error("ERROR: ", err);
+});
