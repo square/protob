@@ -1,0 +1,21 @@
+[
+  {
+    "name": "test/common.proto",
+    "package": "test.common",
+    "enum_type": [
+      {
+        "name": "Gender",
+        "value": [
+          {
+            "name": "FEMALE",
+            "number": 1
+          },
+          {
+            "name": "MALE",
+            "number": 2
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,11 +1,31 @@
 #!/usr/bin/env node
-
 var start = Date.now();
 var Protofile = require('../lib/compiler/protofile').Protofile;
 var Path = require('path');
 var exec = require('child_process').exec;
 
-Protofile.protoPaths.push("./protos.json");
+var optimist = require('optimist')
+  .usage("Usage: $0 [OPTIONS] [protofile, [protofile], [...]]")
+  .options("o", {
+    alias: "outdir",
+    describe: "Output directory for compiled proto files",
+    default: "./protos"
+  })
+  .options("h", {
+    alias: "help",
+    describe: "Show help message",
+    default: false
+  })
+  .boolean("h")
+
+var argv = optimist.argv;
+
+if( argv.help ) { optimist.showHelp(); process.exit(0); }
+
+if( argv._.length == 0){ Protofile.protoPaths.push("./protos.json"); }
+for(var i=0; i < argv._.length; i++) { Protofile.protoPaths.push(argv._[i]); }
+
+if( argv.o ) { Protofile.outputDir = argv.o }
 
 var protofile = new Protofile();
 
@@ -17,11 +37,15 @@ protofile.resolve().then( function(){
   cmd.push("--plugin=" + Path.join(__dirname, "protoc-gen-json"));
   cmd.push("--json_out=" + Protofile.outputDir);
 
-  protofile.sources.forEach(function(source) {
-    cmd.push("-I=" + Path.resolve(source.location));
-  });
+  try{
+    protofile.importPaths().forEach(function(path) {
+      cmd.push("-I=" + Path.resolve(path));
+    });
 
-  protofile.files().forEach(function(file) { cmd.push(Path.resolve(file)) });
+    protofile.files().forEach(function(file) { cmd.push(Path.resolve(file)) });
+  } catch(e) {
+    console.error(e);
+  }
 
   exec( cmd.join(" "), function(error, stdout, stderr) {
     if( error ) {

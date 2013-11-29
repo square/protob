@@ -8,7 +8,7 @@
     "url": "git@git.squareup.com:dneighman/protob.git"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha"
   },
   "author": "Daniel Neighman",
   "license": "BSD-2-Clause",
@@ -16,6 +16,14 @@
     "underscore": "~1.5.2",
     "bytebuffer": "~2.0.0",
     "glob": "~3.2.7",
-    "q": "~0.9.7"
+    "q": "~0.9.7",
+    "optimist": "~0.6.0"
+  },
+  "devDependencies": {
+    "mocha": "~1.14.0",
+    "grunt-cli": "~0.1.11",
+    "grunt": "~0.4.2",
+    "grunt-simple-mocha": "~0.4.0",
+    "grunt-contrib-watch": "~0.5.3"
   }
 }
