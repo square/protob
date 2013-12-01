@@ -51,7 +51,7 @@ var protofile = new Protofile();
 
 console.error("Compiling protos");
 
-fs.mkdirSync(Protofile.outputDir);
+if( !fs.existsSync(Protofile.outputDir)){ fs.mkdirSync(Protofile.outputDir); }
 
 protofile.resolve().then( function(){
   console.error("Resolved Protofiles");
