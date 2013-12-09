@@ -8,7 +8,7 @@
     "url": "git@git.squareup.com:dneighman/protob.git"
   },
   "scripts": {
-    "test": "mocha"
+    "test": "mocha test/**"
   },
   "author": "Daniel Neighman",
   "license": "BSD-2-Clause",

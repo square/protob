@@ -4,7 +4,7 @@ Protocol buffers for Node.js.
 
 ## Protofile
 
-The command line file 'protob' will compile your protocol buffers and output them
+The command line file `protob` will compile your protocol buffers and output them
 
 ### Usage
 
@@ -67,3 +67,24 @@ You can set an enum value as either the number of name.
 
     myMessage.enum_value = "FOO"
     myMessage.encode() // will do the right thing
+
+## Developing
+
+Check out this repo and do:
+
+    npm install
+
+To run tests with grunt, install grunt globally:
+
+    npm install grunt-cli -g
+
+And then:
+
+    grunt simplemocha
+
+Or if you prefer not to install grunt globally:
+
+    ./node_modules/.bin/mocha --reporter spec --ui bdd --slow 200 --timeout 1000 -w lib/** -w test/** test/**
+
+
+
