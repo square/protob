@@ -147,7 +147,7 @@ describe("protofile", function(){
         fixed32_value: 123,
         fixed64_value: 123,
         sfixed32_value: 123,
-        sfixed32_value: 123,
+        sfixed64_value: 123,
         sint32_value: -123,
         sint64_value: -123,
         bool_value: false,
@@ -165,13 +165,11 @@ describe("protofile", function(){
 
     it("decodes the things", function(){
       Object.keys(stuff).forEach(function(field){
-        if(field == "float_value" || field == "fixed64_value"){ return; }
+        if(field == "float_value") {
+          return;
+        }
         Assert.deepEqual(fields[field], decoded[field], "Expected fields for " + field + " to match ");
       });
-    });
-
-    it("decodes fixed64 values", function(){
-      Assert.equal(fields.fixed64_value.toString(), decoded.fixed64_value.toString());
     });
 
     it("decodes float values", function(){
