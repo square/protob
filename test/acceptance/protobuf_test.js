@@ -53,22 +53,22 @@ describe("protofile", function(){
 
     it("converts uint32", function(){
       var stuff = new Stuff({ uint32_value: 12 });
-      Assert.deepEqual(stuff.allFields.uint32_value, 12)
+      Assert.deepEqual(stuff.allFields.uint32_value, 12);
     });
 
     it("converts uint64", function(){
       var stuff = new Stuff({ uint64_value: 12 });
-      Assert.deepEqual(stuff.allFields.uint64_value, Protob.Long.fromNumber(12, true))
+      Assert.deepEqual(stuff.allFields.uint64_value, Protob.Long.fromNumber(12, true));
     });
 
     it("converts fixed32", function(){
       var stuff = new Stuff({ fixed32_value: 12 });
-      Assert.deepEqual(stuff.allFields.fixed32_value, 12 )
+      Assert.deepEqual(stuff.allFields.fixed32_value, 12 );
     });
 
     it("converts fixed64", function(){
       var stuff = new Stuff({ fixed64_value: 12 });
-      Assert.deepEqual(stuff.allFields.fixed64_value, Protob.Long.fromNumber(12, true))
+      Assert.deepEqual(stuff.allFields.fixed64_value, Protob.Long.fromNumber(12, true));
     });
 
     it("converts sfixed32", function(){
@@ -78,7 +78,7 @@ describe("protofile", function(){
 
     it("converts sfixed64", function(){
       var stuff = new Stuff({ sfixed64_value: -12 });
-      Assert.deepEqual(stuff.allFields.sfixed64_value, Protob.Long.fromNumber(-12))
+      Assert.deepEqual(stuff.allFields.sfixed64_value, Protob.Long.fromNumber(-12));
     });
 
     it("converts sint32", function(){
@@ -88,7 +88,7 @@ describe("protofile", function(){
 
     it("converts sint64", function(){
       var stuff = new Stuff({ sint64_value: -12 });
-      Assert.deepEqual(stuff.allFields.sint64_value, Protob.Long.fromNumber(-12))
+      Assert.deepEqual(stuff.allFields.sint64_value, Protob.Long.fromNumber(-12));
     });
 
     it("converts bool", function(){
@@ -117,7 +117,7 @@ describe("protofile", function(){
         it("does not convert " + field + " from a string", function(){
           var stuff = new Stuff();
           stuff[field + "_value"] = "ABCD";
-          Assert.throws(function(){ stuff.allFields });
+          Assert.throws(function(){ stuff.allFields; });
         });
       });
 
@@ -125,7 +125,7 @@ describe("protofile", function(){
         it("does not convert " + field + " with a negative number", function(){
           var stuff = new Stuff();
           stuff[field + "_value"] = -3;
-          Assert.throws(function(){ stuff.allFields });
+          Assert.throws(function(){ stuff.allFields; });
         });
       });
     });
