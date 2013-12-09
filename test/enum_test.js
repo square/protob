@@ -60,9 +60,9 @@ describe("ENUM", function(){
       var valByNumber = testValue.fetch(1);
       var byNumber = testValue.byValue(1);
       var byName = testValue.byName("TYPE_DOUBLE");
-      Assert.deepEqual(byNumber, byName)
-      Assert.deepEqual(byNumber, valByName)
-      Assert.deepEqual(byNumber, valByNumber)
+      Assert.deepEqual(byNumber, byName);
+      Assert.deepEqual(byNumber, valByName);
+      Assert.deepEqual(byNumber, valByNumber);
     });
 
     it("returns true for a valid value", function(){
@@ -96,7 +96,7 @@ describe("ENUM", function(){
         { "name": "TYPE_DOUBLE", "number": 1 },
         { "name": "TYPE_FLOAT", "number": 2 },
         { "name": "TYPE_INT64", "number": 3 }
-      ]
+      ];
       Assert.deepEqual(vals, testValue.enumValues());
     });
   });
