@@ -5,5 +5,6 @@ exports.Enum      = require('./lib/enum').Enum;
 exports.EnumValue = require('./lib/enum').EnumValue;
 exports.Service   = require('./lib/service').Service;
 exports.Protofile = require('./lib/compiler/protofile').Protofile;
+exports.stevenInit   = require('./lib/steven_init');
 
 exports.Compiler.compile(); // compile the base protos
