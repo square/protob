@@ -27,6 +27,6 @@
     "grunt-contrib-watch": "~0.5.3"
   },
   "publishConfig": {
-    "registry": "http://npm.corp.squareup.com:5984"
+    "registry": "http://npm.corp.squareup.com:8000"
   }
 }
