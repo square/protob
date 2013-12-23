@@ -53,7 +53,7 @@ You can access your protocol buffers either by the registry or object cache.
 
     myMessage.encode(); // encodes to a buffer ready to be sent
     MyMessage.decode(myMessage.encode()); // decodes from a buffer to a message
-    myMessage.allFields; // provides a cooerced version of the message. 64 bit integers use the Long library
+    myMessage.protoValues(); // provides a cooerced version of the message. 64 bit integers use the Long library
 
 ## Reflection
 

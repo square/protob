@@ -24,13 +24,16 @@ process.stdin.on("end", function(){
   response.file = [];
 
   request.proto_file.forEach(function(file){
+    console.error("FILE", file);
     var f = new File();
     f.name    = file.name.replace(/\.proto$/, '.json');
     f.content = JSON.stringify([file], null, 2);
     response.file.push(f);
   });
 
+  console.error("GOING TO WRITE THE RESULT");
   var result = response.encode().toBuffer();
+  console.error("Written the result");
 
   process.stdout.write(result)
 });
