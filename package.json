@@ -1,6 +1,6 @@
 {
   "name": "protob",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Protocol Buffers",
   "main": "index.js",
   "repository": {
@@ -8,7 +8,7 @@
     "url": "git@git.squareup.com:dneighman/protob.git"
   },
   "scripts": {
-    "test": "mocha test/**"
+    "test": "mocha --recursive"
   },
   "bin": {
     "protob": "./bin/protob",

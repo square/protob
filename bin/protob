@@ -68,7 +68,6 @@ protofile.resolve().then( function(){
     console.error(e);
   }
 
-  console.error("THE COMMAND IS:", cmd);
   exec( cmd.join(" "), function(error, stdout, stderr) {
     if( error ) {
       console.error(stderr);
