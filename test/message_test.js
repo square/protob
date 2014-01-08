@@ -10,9 +10,6 @@ describe("Message", function(){
   describe("finalize", function(){
   });
 
-  describe("allFields", function(){
-  });
-
   describe("fieldById", function(){
   });
 

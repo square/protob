@@ -32,7 +32,7 @@ This will compile your protocol buffer definitions to json for the protob librar
 
 You can also use this directly.
 
-    $> protoc --json_out=./some/path -I some/path some/proto/files
+    $> protoc --json_out=./some/path -I some/path some/proto/files --plugin=protoc-gen-json
 
 ## Protocompiler
 
@@ -53,7 +53,11 @@ You can access your protocol buffers either by the registry or object cache.
 
     myMessage.encode(); // encodes to a buffer ready to be sent
     MyMessage.decode(myMessage.encode()); // decodes from a buffer to a message
+
     myMessage.protoValues(); // provides a cooerced version of the message. 64 bit integers use the Long library
+    myMessage.protoValues({enums: 'name'}) // convert all enums into name values
+    myMessage.protoValues({enums: 'number'}) // convert all enums into number values
+    myMessage.protoValues({enums: 'full'}) // convert all enums into number values
 
 ## Reflection
 

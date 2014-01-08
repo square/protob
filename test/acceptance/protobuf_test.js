@@ -16,96 +16,96 @@ describe("protofile", function(){
     Assert.equal(homer.name, 'Homer', 'Expected setter on the constructor');
   });
 
-  describe("protoFields", function(){
+  describe("protoValues", function(){
     var Stuff;
     beforeEach(function(){ Stuff = r['test.fox.simpsons.Stuff']; });
 
     it("ignores non field values", function(){
       var stuff = new Stuff({ not_a_value: "foo" });
-      Assert.equal(stuff.protoFields.not_a_value, undefined);
+      Assert.equal(stuff.protoValues().not_a_value, undefined);
       Assert.equal(stuff.not_a_value, "foo");
     });
 
     it("converts strings", function(){
       var stuff = new Stuff({ string_value: "foo" });
-      Assert.equal(stuff.protoFields.string_value, "foo");
+      Assert.equal(stuff.protoValues().string_value, "foo");
     });
 
     it("converts doubles", function(){
       var stuff = new Stuff({ double_value: 12.23 });
-      Assert.equal(stuff.protoFields.double_value, 12.23);
+      Assert.equal(stuff.protoValues().double_value, 12.23);
     });
 
     it("converts floats", function(){
       var stuff = new Stuff({ float_value: 12.23 });
-      Assert.equal(stuff.protoFields.float_value, 12.23);
+      Assert.equal(stuff.protoValues().float_value, 12.23);
     });
 
     it("converts int32", function(){
       var stuff = new Stuff({ int32_value: 12 });
-      Assert.equal(stuff.protoFields.int32_value, 12);
+      Assert.equal(stuff.protoValues().int32_value, 12);
     });
 
     it("converts int64", function(){
       var stuff = new Stuff({ int64_value: 12 });
-      Assert.deepEqual(stuff.protoFields.int64_value, Protob.Long.fromNumber(12));
+      Assert.deepEqual(stuff.protoValues().int64_value, Protob.Long.fromNumber(12));
     });
 
     it("converts uint32", function(){
       var stuff = new Stuff({ uint32_value: 12 });
-      Assert.deepEqual(stuff.protoFields.uint32_value, 12);
+      Assert.deepEqual(stuff.protoValues().uint32_value, 12);
     });
 
     it("converts uint64", function(){
       var stuff = new Stuff({ uint64_value: 12 });
-      Assert.deepEqual(stuff.protoFields.uint64_value, Protob.Long.fromNumber(12, true));
+      Assert.deepEqual(stuff.protoValues().uint64_value, Protob.Long.fromNumber(12, true));
     });
 
     it("converts fixed32", function(){
       var stuff = new Stuff({ fixed32_value: 12 });
-      Assert.deepEqual(stuff.protoFields.fixed32_value, 12 );
+      Assert.deepEqual(stuff.protoValues().fixed32_value, 12 );
     });
 
     it("converts fixed64", function(){
       var stuff = new Stuff({ fixed64_value: 12 });
-      Assert.deepEqual(stuff.protoFields.fixed64_value, Protob.Long.fromNumber(12, true));
+      Assert.deepEqual(stuff.protoValues().fixed64_value, Protob.Long.fromNumber(12, true));
     });
 
     it("converts sfixed32", function(){
       var stuff = new Stuff({ sfixed32_value: -12 });
-      Assert.deepEqual(stuff.protoFields.sfixed32_value, -12);
+      Assert.deepEqual(stuff.protoValues().sfixed32_value, -12);
     });
 
     it("converts sfixed64", function(){
       var stuff = new Stuff({ sfixed64_value: -12 });
-      Assert.deepEqual(stuff.protoFields.sfixed64_value, Protob.Long.fromNumber(-12));
+      Assert.deepEqual(stuff.protoValues().sfixed64_value, Protob.Long.fromNumber(-12));
     });
 
     it("converts sint32", function(){
       var stuff = new Stuff({ sint32_value: -12 });
-      Assert.deepEqual(stuff.protoFields.sint32_value, -12);
+      Assert.deepEqual(stuff.protoValues().sint32_value, -12);
     });
 
     it("converts sint64", function(){
       var stuff = new Stuff({ sint64_value: -12 });
-      Assert.deepEqual(stuff.protoFields.sint64_value, Protob.Long.fromNumber(-12));
+      Assert.deepEqual(stuff.protoValues().sint64_value, Protob.Long.fromNumber(-12));
     });
 
     it("converts bool", function(){
       var stuff = new Stuff({ bool_value: true });
-      Assert.deepEqual(stuff.protoFields.bool_value, true);
+      Assert.deepEqual(stuff.protoValues().bool_value, true);
     });
 
     it("converts bytes", function(){
       var char = new r['test.fox.simpsons.Character']({name: "Homer"});
       var stuff = new Stuff({ bytes_value: char.encode() });
-      Assert.deepEqual(char.constructor.decode(stuff.protoFields.bytes_value), {name: "Homer", is_evil: true, is_lovable: false});
+      Assert.deepEqual(char.constructor.decode(stuff.protoValues().bytes_value), {name: "Homer", is_evil: true, is_lovable: false});
     });
 
     it("handles messages", function(){
       var stuff = new Stuff({message_value: { name: "Marge" }});
-      Assert(stuff.protoFields.message_value instanceof r['test.fox.simpsons.Character']);
-      Assert.deepEqual(stuff.protoFields.message_value, { name: "Marge", is_evil: true, is_lovable: false });
+      Assert(stuff.protoValues().message_value instanceof r['test.fox.simpsons.Character']);
+      Assert.deepEqual(stuff.protoValues().message_value, { name: "Marge", is_evil: true, is_lovable: false });
     });
 
     describe("conversion options", function(){
@@ -168,7 +168,7 @@ describe("protofile", function(){
         it("does not convert " + field + " from a string", function(){
           var stuff = new Stuff();
           stuff[field + "_value"] = "ABCD";
-          Assert.throws(function(){ stuff.protoFields; });
+          Assert.throws(function(){ stuff.protoValues(); });
         });
       });
 
@@ -176,7 +176,7 @@ describe("protofile", function(){
         it("does not convert " + field + " with a negative number", function(){
           var stuff = new Stuff();
           stuff[field + "_value"] = -3;
-          Assert.throws(function(){ stuff.protoFields; });
+          Assert.throws(function(){ stuff.protoValues(); });
         });
       });
     });
@@ -207,7 +207,7 @@ describe("protofile", function(){
       });
       encoded = stuff.encode();
       decoded = Stuff.decode(encoded);
-      fields = stuff.protoFields;
+      fields = stuff.protoValues();
     });
 
     it("encodes the message to a buffer", function(){
