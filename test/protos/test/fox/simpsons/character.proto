@@ -27,5 +27,15 @@ message Stuff {
   optional bool bool_value = 14;
   optional bytes bytes_value = 15;
   optional Character message_value = 16;
-}
 
+  enum GreetingType {
+    NICE  = 1;
+    NASTY = 2;
+  }
+
+  extend test.common.Extendable {
+    optional bool greet = 1000;
+    optional string msg = 1001;
+    optional GreetingType greeting_type = 1002;
+  }
+}

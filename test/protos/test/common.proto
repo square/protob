@@ -4,3 +4,10 @@ enum Gender {
   FEMALE = 1;
   MALE   = 2;
 }
+
+message Extendable {
+  optional string name = 1;
+
+  /** some extensions */
+  extensions 1000 to 1099;
+}

@@ -144,6 +144,45 @@
             "type": 11,
             "type_name": ".test.fox.simpsons.Character"
           }
+        ],
+        "enum_type": [
+          {
+            "name": "GreetingType",
+            "value": [
+              {
+                "name": "NICE",
+                "number": 1
+              },
+              {
+                "name": "NASTY",
+                "number": 2
+              }
+            ]
+          }
+        ],
+        "extension": [
+          {
+            "name": "greet",
+            "extendee": ".test.common.Extendable",
+            "number": 1000,
+            "label": 1,
+            "type": 8
+          },
+          {
+            "name": "msg",
+            "extendee": ".test.common.Extendable",
+            "number": 1001,
+            "label": 1,
+            "type": 9
+          },
+          {
+            "name": "greeting_type",
+            "extendee": ".test.common.Extendable",
+            "number": 1002,
+            "label": 1,
+            "type": 14,
+            "type_name": ".test.fox.simpsons.Stuff.GreetingType"
+          }
         ]
       }
     ]

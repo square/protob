@@ -235,5 +235,42 @@ describe("protofile", function(){
       Assert.equal(char.is_lovable, false);
     });
   });
+
+  describe("extensions", function(){
+    var Extendable, ext;
+    beforeEach(function(){
+      Extendable = r['test.common.Extendable'];
+
+      ext = new Extendable({
+        name: "Plow King",
+        greet: true,
+        msg: 'Hai there',
+        greeting_type: 'NICE'
+      });
+
+    });
+
+    it("sets up extensions", function(){
+      var result = ext.protoValues({enums: 'name'});
+      Assert.equal(result.name, 'Plow King');
+      Assert.equal(result.greet, true);
+      Assert.equal(result.msg, 'Hai there');
+      Assert.equal(result.greeting_type, 'NICE');
+    });
+
+    it("excludes extensions unless they're in the list", function(){
+      var result = ext.protoValues({enums: 'name', extensions: 'test.fox.simpsons'});
+      Assert.equal(result.name, 'Plow King');
+      Assert.equal(result.greet, true);
+      Assert.equal(result.msg, 'Hai there');
+      Assert.equal(result.greeting_type, 'NICE');
+
+      var result = ext.protoValues({enums: 'name', extensions: []});
+      Assert.equal(result.name, 'Plow King');
+      Assert(result.hasOwnProperty('greet') === false);
+      Assert(result.hasOwnProperty('msg') === false);
+      Assert(result.hasOwnProperty('greeting_type') === false);
+    });
+  });
 });
 
