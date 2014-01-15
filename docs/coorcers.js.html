@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: compiler/coorcers.js</title>
+    
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+    
+    <h1 class="page-title">Source: compiler/coorcers.js</h1>
+    
+    
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * A collection of encoding functions that act on a value and encode it in wire format
+ * @module protob
+ * @namespace coorcers
+ * @exports coorcers
+ */
+var Util = require('util');
+var Enum = require('../enum').Enum;
+var EnumValue = require('../enum').EnumValue;
+var Long = require('../protob').Protob.Long;
+var ByteBuffer = require('../protob').ByteBuffer;
+
+var UNIMPLEMENTED = function(val) { return val; };
+
+function FLOAT(fieldName) {
+  var func = function(val) {
+    if ( !val ) { return undefined; }
+    val = parseFloat(val);
+    if ( isNaN(val) ) {
+      throw(new Error(fieldName + ": is not a number"));
+    } else {
+      return val;
+    }
+  };
+  return func;
+};
+
+function INTEGER32(fieldName, signed) {
+  var maxSize = ( signed ? 2147483648 : 4294967296 );
+  var minSize = ( signed ? -2147483648 : 0 );
+  var func = function(val) {
+    if ( val === undefined || val === null ) { return undefined; }
+    var result = parseInt(val, 10);
+    if ( isNaN(result) ) {
+      throw(new Error(fieldName + ": is not a number"));
+    } else if ( result > maxSize ) {
+      throw(new Error(fieldName + ": is too large at " + result + ". Should be less than " + maxSize));
+    } else if ( result &lt; minSize ) {
+      throw(new Error(fieldName + ": is too small at " + result + ". Should be less than " + minSize));
+    }
+    return result;
+  };
+  return func;
+};
+
+function SIGNED32(fieldName) { return INTEGER32(fieldName, true); };
+function UNSIGNED32(fieldName) { return INTEGER32(fieldName, false); };
+
+function INTEGER64(fieldName, signed) {
+  var maxSize = ( signed ? Long.MAX_SIGNED_VALUE : Long.MAX_UNSIGNED_VALUE );
+  var minSize = ( signed ? Long.MIN_SIGNED_VALUE : Long.ZERO );
+
+  var func = function(val) {
+    if ( val === undefined || val === null ) { return undefined; }
+    var value;
+    if ( val instanceof Long ) {
+      value = val;
+    } else if ( isNaN(val) ) {
+      throw(new Error(fieldName + " is not a number"));
+    } else if (typeof val == 'string') {
+      value = Long.fromString(val, !signed);
+    } else {
+      value = Long.fromNumber(val, !signed);
+    }
+    if ( value.greaterThan(maxSize) ) {
+      throw(new Error(fieldName + " is too large", value.toString() ));
+    } else if ( value.lessThan(minSize) ) {
+      throw(new Error(fieldName + " is too small", value.toString() ));
+    }
+    return value;
+  };
+  return func;
+};
+
+function SIGNED64(fieldName) {
+  return INTEGER64(fieldName, true);
+};
+
+function UNSIGNED64(fieldName) {
+  return INTEGER64(fieldName, false);
+};
+
+var coorcers = {
+  TYPE_ENUM: function(fn, e) {
+    var func = function(val, opts) {
+      var r;
+      if ( !val ) { return undefined; }
+      if ( val instanceof EnumValue ) {
+        r = e.fetch(val.name);
+      } else {
+        r =  e.fetch(val);
+      }
+      if ( !r ) { throw( new Error(fn + ": Unknown ENUM value " + val + " for " + e.fullName)); }
+
+      switch(opts &amp;&amp; opts.enums){
+        case 'name':
+          r =  r.name;
+          break;
+        case 'value':
+          r = r.number;
+          break;
+        default:
+          break;
+      }
+      return r;
+    };
+    return func;
+  },
+
+  TYPE_DOUBLE:   function(fn) { return FLOAT(fn);      } ,
+  TYPE_FLOAT:    function(fn) { return FLOAT(fn);      } ,
+  TYPE_INT32:    function(fn) { return SIGNED32(fn);   } ,
+  TYPE_INT64:    function(fn) { return SIGNED64(fn);   } ,
+  TYPE_UINT32:   function(fn) { return UNSIGNED32(fn); } ,
+  TYPE_UINT64:   function(fn) { return UNSIGNED64(fn); } ,
+  TYPE_FIXED32:  function(fn) { return UNSIGNED32(fn); } ,
+  TYPE_FIXED64:  function(fn) { return UNSIGNED64(fn); } ,
+  TYPE_SFIXED32: function(fn) { return SIGNED32(fn);   } ,
+  TYPE_SFIXED64: function(fn) { return SIGNED64(fn);   } ,
+  TYPE_SINT32:   function(fn) { return SIGNED32(fn);   } ,
+  TYPE_SINT64:   function(fn) { return SIGNED64(fn);   } ,
+
+  TYPE_BOOL: function(fn) {
+    var func = function(val) {
+      if ( val === undefined || val === null ) { return undefined; }
+      return !!val;
+    };
+    return func;
+  },
+
+  TYPE_STRING: function(fn) {
+    var func = function(val) {
+      if ( val === undefined || val === null ) { return undefined; }
+      if ( typeof(val) == 'string' ){
+        return val;
+      } else {
+        throw( new Error(fn + ": must be a string. Was " + Util.inspect(val)) );
+      }
+    };
+    return func;
+  },
+
+  TYPE_MESSAGE: function(fn, field) {
+    var clazz = field.descriptor.concrete;
+    var func = function(val) {
+      if ( val === undefined || val === null ) { return undefined; }
+      if ( val instanceof clazz ) { return val; }
+      // coorce the object into one of those messages
+      return new clazz(val); // TODO: are we serializing this here or validating it or what?
+    };
+    return func;
+  },
+
+  TYPE_GROUP:    function(fn) { return UNIMPLEMENTED; },
+  TYPE_BYTES:    function(fn) {
+    var func = function(val) {
+      if ( val === undefined || val === null ) { return undefined; }
+      if ( val instanceof ByteBuffer ) { return val; }
+
+      return ByteBuffer.wrap(val);
+    };
+    return func;
+  }
+};
+
+exports.coorcers = coorcers;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Index</a></h2><h3>Modules</h3><ul><li><a href="module-coorcers.html">coorcers</a></li><li><a href="module-dencoders.html">dencoders</a></li><li><a href="module-encoders.html">encoders</a></li><li><a href="module-protob.html">protob</a></li><li><a href="compiler.html">protob/compiler</a></li><li><a href="protofile.html">protob/compiler/protofile</a></li><li><a href="enum.html">protob/enum</a></li><li><a href="message.html">protob/message</a></li><li><a href="service.html">protob/service</a></li><li><a href="_.html">protob/util
+A simple set of utilities</a></li></ul><h3>Classes</h3><ul><li><a href="protofile-Source.html">Source</a></li><li><a href="compiler-Compiler.html">Compiler</a></li><li><a href="enum-Enum.html">Enum</a></li><li><a href="enum-EnumValue.html">EnumValue</a></li><li><a href="message-Message.html">Message</a></li><li><a href="service-Service.html">Service</a></li></ul><h3>Namespaces</h3><ul><li><a href="Protob.html">Protob</a></li></ul><h3>Global</h3><ul><li><a href="global.html#TYPE_BOOL">TYPE_BOOL</a></li><li><a href="global.html#TYPE_BYTES">TYPE_BYTES</a></li><li><a href="global.html#TYPE_DOUBLE">TYPE_DOUBLE</a></li><li><a href="global.html#TYPE_ENUM">TYPE_ENUM</a></li><li><a href="global.html#TYPE_FIXED32">TYPE_FIXED32</a></li><li><a href="global.html#TYPE_FIXED64">TYPE_FIXED64</a></li><li><a href="global.html#TYPE_FLOAT">TYPE_FLOAT</a></li><li><a href="global.html#TYPE_INT32">TYPE_INT32</a></li><li><a href="global.html#TYPE_INT64">TYPE_INT64</a></li><li><a href="global.html#TYPE_MESSAGE">TYPE_MESSAGE</a></li><li><a href="global.html#TYPE_SFIXED32">TYPE_SFIXED32</a></li><li><a href="global.html#TYPE_SFIXED64">TYPE_SFIXED64</a></li><li><a href="global.html#TYPE_SINT32">TYPE_SINT32</a></li><li><a href="global.html#TYPE_SINT64">TYPE_SINT64</a></li><li><a href="global.html#TYPE_STRING">TYPE_STRING</a></li><li><a href="global.html#TYPE_UINT32">TYPE_UINT32</a></li><li><a href="global.html#TYPE_UINT64">TYPE_UINT64</a></li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha3</a> on Wed Jan 15 2014 09:47:02 GMT-0800 (PST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

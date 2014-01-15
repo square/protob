@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: compiler.js</title>
+    
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+    
+    <h1 class="page-title">Source: compiler.js</h1>
+    
+    
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Compiler for parsed .proto files that have already been converted into .json files
+ *
+ * @module protob/compiler
+ * @exports Compiler
+ */
+var fs = require('fs'),
+    Path = require('path'),
+    glob = require('glob'),
+    Util = require('util'),
+    Enum = require('./enum').Enum,
+    EnumValue = require('./enum').EnumValue,
+    Message = require('./message').Message,
+    Service = require('./service').Service,
+    registry = require('./protob').registry,
+    objAccess = require('./protob').Protob.v,
+    extensions = require('./protob').Protob.extensions,
+    pUtil = require('./util').Util,
+    baseCompiled = false;
+
+
+/**
+ * A new instance of a compiler. Compilers will update the Protob registry and define Javascript objects for each message, enum, service found
+ * @constructor
+ */
+function Compiler(){}
+
+/**
+ * Compiles all the .json files found in any of the paths (found recursively) provided
+ *
+ * This will create Javascript objects in the registry for each message, enum, service found in the descriptors for those files.
+ * Extensions will then be applied and finally the Object cache (Protob.v) will be updated to include any new objects.
+ *
+ * compile can be called many times and is additive to the registry. Each time you call it though, every message type will be finalized anew.
+ *
+ * @argument {string} - Repeated arguments for each directory to look under for json files to compile
+ * @example
+ *    compiler = new Compiler();
+ *    compiler.compile("./foo", "./protos")
+ *
+ * @public
+ */
+Compiler.prototype.compile = function(){
+  var self = this;
+  var paths =  Array.prototype.slice.call(arguments) || [];
+
+  if ( !baseCompiled ) {
+    baseCompiled = true;
+    this.compile(Path.join(__dirname, "../protos/descriptors.json"));
+  }
+
+  paths.forEach(function(pathh) {
+    var pathz = [pathh];
+    if (!( /\.json/.test(pathh)) ) {
+      pathz = glob.sync(Path.join(pathh, "**/*.json"));
+    }
+
+    pathz.forEach(function(path) {
+      descriptors = JSON.parse(fs.readFileSync(path));
+      if ( descriptors.length === 0 ) { return; }
+      descriptors.forEach(function(desc) {
+        self.compileDescriptor(desc);
+      });
+    });
+  });
+
+  this.applyExtensions();
+
+  Object.getOwnPropertyNames(registry).forEach( function(item){
+    registry[item].finalize();
+  });
+
+  this.updateObjectAccess();
+
+  return registry;
+}
+
+/**
+ * Updates the object access cache for Protob with all the messages found in the registry.
+ *
+ *
+ * @example
+ *    compiler.updateObjectAccess();
+ *
+ *    Protob.registry['foo.bar.Baz'] === Protob.v.foo.bar.Baz;
+ *
+ * @private
+ */
+Compiler.prototype.updateObjectAccess = function(){
+  Object.getOwnPropertyNames(registry).forEach( function(key) {
+    key.split(".").reduce(function(prev, current, idx, arry) {
+      if( (idx == arry.length - 1) ) {
+        prev[current] = registry[key];
+      } else {
+        prev[current] = prev[current] || {};
+      }
+      return prev[current];
+    }, objAccess);
+  });
+}
+
+/**
+ * Compiles a generic descriptor, this could be of type message, enum, or service
+ * @param {object} descriptor - The object that is a google.protobuf.FileDescriptor
+ * @private
+ */
+Compiler.prototype.compileDescriptor = function(descriptor) {
+  var pkg = descriptor['package'],
+      self = this;
+
+  if ( Array.isArray(descriptor.enum_type) ) {
+    descriptor.enum_type.forEach( function(enumDesc) {
+      self.compileEnum(enumDesc, pkg, descriptor);
+    });
+  }
+
+  if ( Array.isArray(descriptor.message_type) ) {
+    descriptor.message_type.forEach( function(msgDesc) {
+      self.compileMessage(msgDesc, pkg, descriptor);
+    });
+  }
+
+  if( Array.isArray(descriptor.extension) ) {
+    descriptor.extension.forEach(function(ext){
+      ext.pkg = pkg;
+      self.addExtension(ext);
+    });
+  }
+
+  if ( Array.isArray(descriptor.service) ) {
+    descriptor.service.forEach( function(serviceDesc) {
+      self.compileService(serviceDesc, pkg, descriptor);
+    });
+  }
+
+  // TODO: handle options
+}
+
+/**
+ * Add an extension found in a message, service or file to the extensions cache
+ * Before finalization, all extensions will be added to the relevant items.
+ * @param {object} ext - The extension definiton to attach to the extendees descriptor
+ * @private
+ */
+Compiler.prototype.addExtension = function(ext){
+  var extendee = ext.extendee.replace(/^\./, ''),
+      key = extendee + ext.number;
+  ext.extendee = extendee;
+  extensions[key] = ext;
+};
+
+/**
+ * Applies the extensions found in the extensions cache to the relevant descriptors prior to finalization
+ * @private
+ */
+Compiler.prototype.applyExtensions = function(){
+  Object.keys(extensions).forEach(function(key){
+    var ext = extensions[key],
+        extendee = registry[ext.extendee].descriptor,
+        field;
+
+    extendee.field = extendee.field || [];
+    field = extendee.field.filter(function(f){ return f.number === ext.number; })[0];
+    if(!field){
+      extendee.field.push(ext);
+    }
+  });
+}
+
+/**
+ * Compiles an Enum, and all associated EnumValues and creates a new object in the registry,
+ * or updates an existing one by calling updateDescriptor on the enum.
+ * @param {object} enumDesc - The enum descriptor
+ * @param {string} pkg - The protobuf package name
+ * @param {object} descriptor - The file descriptor that this enum came from
+ * @private
+ */
+Compiler.prototype.compileEnum = function(enumDesc, pkg, descriptor) {
+  var fullName = pkg + "." + enumDesc.name;
+
+  if ( !registry[fullName] ) {
+    nenum = function() {
+      Enum.prototype.constructor.call(this, Array.prototype.slice.call(arguments));
+    };
+    Util.inherits(nenum, Enum);
+    registry[fullName] = new nenum(pkg);
+  }
+
+  registry[fullName].updateDescriptor(enumDesc);
+};
+
+/**
+ * Compiles a Message and adds it to the registry
+ * or updates an existing one by calling updateDescriptor
+ * @param {object} messageDesc - The message descriptor
+ * @param {string} pkg - The protobuf package name
+ * @param {object} descriptor - The file descriptor that this message came from
+ * @private
+ */
+Compiler.prototype.compileMessage = function(messageDesc, pkg, descriptor) {
+  var fullName = pkg + "." + messageDesc.name;
+  var self     = this;
+
+  if( Array.isArray(messageDesc.enum_type) ) {
+    messageDesc.enum_type.forEach(function(enumDesc) {
+      self.compileEnum(enumDesc, fullName, descriptor);
+    });
+  }
+
+  if ( !registry[fullName] ) {
+    nmessage = function() { Message.apply(this, Array.prototype.slice.call(arguments)); };
+    Util.inherits(nmessage, Message);
+    nmessage.parent = pkg;
+    nmessage.updateDescriptor = Message.updateDescriptor;
+    nmessage.afterInitialize = [];
+    registry[fullName] = nmessage;
+  }
+
+  registry[fullName].updateDescriptor(messageDesc);
+
+  if( Array.isArray(messageDesc.extension) ){
+    messageDesc.extension.forEach(function(ext){
+      ext.pkg = pkg;
+      self.addExtension(ext);
+    });
+  }
+
+  if( Array.isArray(messageDesc.nested_type) ) {
+    messageDesc.nested_type.forEach(function(msgDesc) {
+      self.compileMessage(msgDesc, fullName, descriptor);
+    });
+  }
+}
+
+/**
+ * Compiles a Service and adds it to the registry
+ * or updates an existing one by calling updateDescriptor
+ * @param {object} serviceDesc - The service descriptor
+ * @param {string} pkg - The protobuf package name
+ * @param {object} descriptor - The file descriptor that this service
+ * @private
+ */
+Compiler.prototype.compileService = function(serviceDesc, pkg, descriptor) {
+  var fullName = pkg + "." + serviceDesc.name;
+  var self     = this;
+
+  if ( !registry[fullName] ) {
+    nservice = function() {
+      Service.apply(this, Array.prototype.slice.call(arguments));
+    };
+    Util.inherits(nservice, Service);
+    nservice.parent = pkg;
+    nservice.updateDescriptor = Service.updateDescriptor;
+    registry[fullName] = nservice;
+  }
+
+  if( Array.isArray(serviceDesc.extension) ){
+    serviceDesc.extension.forEach(function(ext){
+      ext.pkg = pkg;
+      self.addExtension(ext);
+    });
+  }
+
+  registry[fullName].updateDescriptor(serviceDesc);
+};
+
+exports.Compiler = new Compiler();
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Index</a></h2><h3>Modules</h3><ul><li><a href="module-coorcers.html">coorcers</a></li><li><a href="module-dencoders.html">dencoders</a></li><li><a href="module-encoders.html">encoders</a></li><li><a href="module-protob.html">protob</a></li><li><a href="compiler.html">protob/compiler</a></li><li><a href="protofile.html">protob/compiler/protofile</a></li><li><a href="enum.html">protob/enum</a></li><li><a href="message.html">protob/message</a></li><li><a href="service.html">protob/service</a></li><li><a href="_.html">protob/util
+A simple set of utilities</a></li></ul><h3>Classes</h3><ul><li><a href="protofile-Source.html">Source</a></li><li><a href="compiler-Compiler.html">Compiler</a></li><li><a href="enum-Enum.html">Enum</a></li><li><a href="enum-EnumValue.html">EnumValue</a></li><li><a href="message-Message.html">Message</a></li><li><a href="service-Service.html">Service</a></li></ul><h3>Namespaces</h3><ul><li><a href="Protob.html">Protob</a></li></ul><h3>Global</h3><ul><li><a href="global.html#TYPE_BOOL">TYPE_BOOL</a></li><li><a href="global.html#TYPE_BYTES">TYPE_BYTES</a></li><li><a href="global.html#TYPE_DOUBLE">TYPE_DOUBLE</a></li><li><a href="global.html#TYPE_ENUM">TYPE_ENUM</a></li><li><a href="global.html#TYPE_FIXED32">TYPE_FIXED32</a></li><li><a href="global.html#TYPE_FIXED64">TYPE_FIXED64</a></li><li><a href="global.html#TYPE_FLOAT">TYPE_FLOAT</a></li><li><a href="global.html#TYPE_INT32">TYPE_INT32</a></li><li><a href="global.html#TYPE_INT64">TYPE_INT64</a></li><li><a href="global.html#TYPE_MESSAGE">TYPE_MESSAGE</a></li><li><a href="global.html#TYPE_SFIXED32">TYPE_SFIXED32</a></li><li><a href="global.html#TYPE_SFIXED64">TYPE_SFIXED64</a></li><li><a href="global.html#TYPE_SINT32">TYPE_SINT32</a></li><li><a href="global.html#TYPE_SINT64">TYPE_SINT64</a></li><li><a href="global.html#TYPE_STRING">TYPE_STRING</a></li><li><a href="global.html#TYPE_UINT32">TYPE_UINT32</a></li><li><a href="global.html#TYPE_UINT64">TYPE_UINT64</a></li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha3</a> on Wed Jan 15 2014 09:47:02 GMT-0800 (PST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

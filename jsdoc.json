@@ -1,0 +1,13 @@
+{
+  "tags": {
+    "allowUnknownTags": true
+  },
+  "source": {
+    "exclude": ["node_modules"],
+    "include": ["README.md", "lib", "lib/compiler"]
+  },
+  "opts": {
+    "recursive": true,
+    "destination": "./docs"
+  }
+}

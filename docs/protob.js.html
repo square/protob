@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: protob.js</title>
+    
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+    
+    <h1 class="page-title">Source: protob.js</h1>
+    
+    
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Provides protocol buffer support for Node.js
+ * Protob includes a proto buffer compiler `proto-gen-json` and uses the output to dynamically construct Javascript objects
+ * that implement these definitions.
+ *
+ * Protob provides support for:
+ *
+ * &lt;ul>
+ *   &lt;li>Converting .proto files to json definitions using protoc&lt;/li>
+ *   &lt;li>Fast loading&lt;/li>
+ *   &lt;li>64 bit support (Long.js &amp;&amp; ByteBuffer.js)&lt;/li>
+ *   &lt;li>Reflection and introspection&lt;/li>
+ *   &lt;li>Dynamic reloading of proto definitions&lt;/li>
+ *   &lt;li>Messages&lt;/li>
+ *   &lt;li>Enums&lt;/li>
+ *   &lt;li>Services&lt;/li>
+ *   &lt;li>Exposes extensions but does not support extended messages (yet)&lt;/li>
+ * &lt;/ul>
+ *
+ * RPC handling is outside the scope of Protob. These schemes vary wildly between usecases and so should be implmeneted at a different layer.
+ *
+ * This library took inspiration from protobuf.js and borrows some code from there (with changes).
+ * Thanks to the protobuf.js maintainers.
+ *
+ * @module protob
+ */
+var ByteBuffer = require('bytebuffer'),
+    FS = require('fs'),
+    registry = fetchRegistry(),
+    Path = require('path'),
+    v = fetchObjectCache(),
+    extensions = fetchExtensionsCache();
+
+/**
+ * Fetches a cache from the global object for protobuf definitions to be stored on
+ * @private
+ */
+function fetchProtobCache(){
+  if(!global.protob){ global.protob = {}; }
+  return global.protob;
+}
+
+/**
+ * Fetches the compiled protobuffer registry
+ * @private
+ */
+function fetchRegistry(){
+  var cache = fetchProtobCache();
+  if(!cache.registry){ cache.registry = {}; }
+  return cache.registry;
+}
+
+
+/**
+ * Fetches the compiled protobuffer object cache
+ * @private
+ */
+function fetchObjectCache(){
+  var cache = fetchProtobCache();
+  if(!cache.objectCache){ cache.objectCache = {}; }
+  return cache.objectCache;
+}
+
+/**
+ * Fetches the compiled protobuffer extensions cache
+ * @private
+ */
+function fetchExtensionsCache(){
+  var cache = fetchProtobCache();
+  if(!cache.extensionsCache){ cache.extensionsCache = {}; }
+  return cache.extensionsCache;
+}
+
+/**
+* The Protob namespace.
+* @exports Protob
+* @namespace
+* @expose
+*/
+var Protob = {};
+
+/**
+ * Protob.js version.
+ * @type {string}
+ * @const
+ * @expose
+ */
+Protob.VERSION = JSON.parse(FS.readFileSync(Path.join(__dirname, '../package.json'))).version;
+
+/**
+ * Wire types.
+ * @type {Object.&lt;string,number>}
+ * @const
+ * @expose
+ */
+Protob.WIRE_TYPES = {};
+
+/**
+ * Varint wire type.
+ * @type {number}
+ * @expose
+ */
+Protob.WIRE_TYPES.VARINT = 0;
+
+/**
+ * Fixed 64 bits wire type.
+ * @type {number}
+ * @const
+ * @expose
+ */
+Protob.WIRE_TYPES.BITS64 = 1;
+
+/**
+ * Length delimited wire type.
+ * @type {number}
+ * @const
+ * @expose
+ */
+Protob.WIRE_TYPES.LDELIM = 2;
+
+/**
+ * Start group wire type.
+ * @type {number}
+ * @const
+ * @deprecated Not supported.
+ * @expose
+ */
+Protob.WIRE_TYPES.STARTGROUP = 3;
+
+/**
+ * End group wire type.
+ * @type {number}
+ * @const
+ * @deprecated Not supported.
+ * @expose
+ */
+Protob.WIRE_TYPES.ENDGROUP = 4;
+
+/**
+ * Fixed 32 bits wire type.
+ * @type {number}
+ * @const
+ * @expose
+ */
+Protob.WIRE_TYPES.BITS32 = 5;
+
+/**
+ * Types.
+ * @dict
+ * @type {Object.&lt;string,{name: string, wireType: number}>}
+ * @const
+ * @expose
+ */
+Protob.TYPES = {
+    // According to the protobuf spec.
+    "TYPE_INT32": {
+        name: "int32",
+        wireType: Protob.WIRE_TYPES.VARINT
+    },
+    "TYPE_UINT32": {
+        name: "uint32",
+        wireType: Protob.WIRE_TYPES.VARINT
+    },
+    "TYPE_SINT32": {
+        name: "sint32",
+        wireType: Protob.WIRE_TYPES.VARINT
+    },
+    "TYPE_INT64": {
+        name: "int64",
+        wireType: Protob.WIRE_TYPES.VARINT
+    },
+    "TYPE_UINT64": {
+        name: "uint64",
+        wireType: Protob.WIRE_TYPES.VARINT
+    },
+    "TYPE_SINT64": {
+        name: "sint64",
+        wireType: Protob.WIRE_TYPES.VARINT
+    },
+    "TYPE_BOOL": {
+        name: "bool",
+        wireType: Protob.WIRE_TYPES.VARINT
+    },
+    "TYPE_DOUBLE": {
+        name: "double",
+        wireType: Protob.WIRE_TYPES.BITS64
+    },
+    "TYPE_STRING": {
+        name: "string",
+        wireType: Protob.WIRE_TYPES.LDELIM
+    },
+    "TYPE_BYTES": {
+        name: "bytes",
+        wireType: Protob.WIRE_TYPES.LDELIM
+    },
+    "TYPE_FIXED32": {
+        name: "fixed32",
+        wireType: Protob.WIRE_TYPES.BITS32
+    },
+    "TYPE_SFIXED32": {
+        name: "sfixed32",
+        wireType: Protob.WIRE_TYPES.BITS32
+    },
+    "TYPE_FIXED64": {
+        name: "fixed64",
+        wireType: Protob.WIRE_TYPES.BITS64
+    },
+    "TYPE_SFIXED64": {
+        name: "sfixed64",
+        wireType: Protob.WIRE_TYPES.BITS64
+    },
+    "TYPE_FLOAT": {
+        name: "float",
+        wireType: Protob.WIRE_TYPES.BITS32
+    },
+    "TYPE_ENUM": {
+        name: "enum",
+        wireType: Protob.WIRE_TYPES.VARINT
+    },
+    "TYPE_MESSAGE": {
+        name: "message",
+        wireType: Protob.WIRE_TYPES.LDELIM
+    }
+};
+/**
+* @type {?Long}
+*/
+Protob.Long = ByteBuffer.Long;
+Protob.ByteBuffer = ByteBuffer;
+
+/**
+ * A registry of compiled protocol buffer objects
+ * Each object is keyed by it's protocol buffer name (including package) and each value is the constructor.
+ * @type {object.&lt;string,Protob.Message>}
+ * @example
+ *    var registry = require('protob').Protob.registry,
+ *        fileDescriptor = new registry['google.protobuf.FileDescriptor']();
+ * @expose
+ */
+Protob.registry = registry;
+Protob.v = v;
+Protob.extensions = extensions;
+
+exports.registry = registry;
+exports.Protob = Protob;
+exports.ByteBuffer = ByteBuffer;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Index</a></h2><h3>Modules</h3><ul><li><a href="module-coorcers.html">coorcers</a></li><li><a href="module-dencoders.html">dencoders</a></li><li><a href="module-encoders.html">encoders</a></li><li><a href="module-protob.html">protob</a></li><li><a href="compiler.html">protob/compiler</a></li><li><a href="protofile.html">protob/compiler/protofile</a></li><li><a href="enum.html">protob/enum</a></li><li><a href="message.html">protob/message</a></li><li><a href="service.html">protob/service</a></li><li><a href="_.html">protob/util
+A simple set of utilities</a></li></ul><h3>Classes</h3><ul><li><a href="protofile-Source.html">Source</a></li><li><a href="compiler-Compiler.html">Compiler</a></li><li><a href="enum-Enum.html">Enum</a></li><li><a href="enum-EnumValue.html">EnumValue</a></li><li><a href="message-Message.html">Message</a></li><li><a href="service-Service.html">Service</a></li></ul><h3>Namespaces</h3><ul><li><a href="Protob.html">Protob</a></li></ul><h3>Global</h3><ul><li><a href="global.html#TYPE_BOOL">TYPE_BOOL</a></li><li><a href="global.html#TYPE_BYTES">TYPE_BYTES</a></li><li><a href="global.html#TYPE_DOUBLE">TYPE_DOUBLE</a></li><li><a href="global.html#TYPE_ENUM">TYPE_ENUM</a></li><li><a href="global.html#TYPE_FIXED32">TYPE_FIXED32</a></li><li><a href="global.html#TYPE_FIXED64">TYPE_FIXED64</a></li><li><a href="global.html#TYPE_FLOAT">TYPE_FLOAT</a></li><li><a href="global.html#TYPE_INT32">TYPE_INT32</a></li><li><a href="global.html#TYPE_INT64">TYPE_INT64</a></li><li><a href="global.html#TYPE_MESSAGE">TYPE_MESSAGE</a></li><li><a href="global.html#TYPE_SFIXED32">TYPE_SFIXED32</a></li><li><a href="global.html#TYPE_SFIXED64">TYPE_SFIXED64</a></li><li><a href="global.html#TYPE_SINT32">TYPE_SINT32</a></li><li><a href="global.html#TYPE_SINT64">TYPE_SINT64</a></li><li><a href="global.html#TYPE_STRING">TYPE_STRING</a></li><li><a href="global.html#TYPE_UINT32">TYPE_UINT32</a></li><li><a href="global.html#TYPE_UINT64">TYPE_UINT64</a></li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha3</a> on Wed Jan 15 2014 09:47:02 GMT-0800 (PST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

@@ -8,7 +8,8 @@
     "url": "git@git.squareup.com:dneighman/protob.git"
   },
   "scripts": {
-    "test": "mocha --recursive"
+    "test": "mocha --recursive",
+    "docs": "jsdoc -c jsdoc.json"
   },
   "bin": {
     "protob": "./bin/protob",
@@ -28,7 +29,9 @@
     "grunt-cli": "~0.1.11",
     "grunt": "~0.4.2",
     "grunt-simple-mocha": "~0.4.0",
-    "grunt-contrib-watch": "~0.5.3"
+    "grunt-contrib-watch": "~0.5.3",
+    "jsdocs-client": "*",
+    "jsdoc": ""
   },
   "publishConfig": {
     "registry": "http://npm.corp.squareup.com:8000"

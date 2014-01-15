@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: message.js</title>
+    
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+    
+    <h1 class="page-title">Source: message.js</h1>
+    
+    
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Represents a compiled protobuf message
+ * Messages are introspective so you can discover the field definitions at runtime
+ * @module protob/message
+ */
+var _ = require('underscore');
+var MESSAGE = "MESSAGE";
+var registry = require('./protob').registry;
+var coorcers = require('./compiler/coorcers').coorcers;
+var ByteBuffer = require('./protob').ByteBuffer;
+var Protob     = require('./protob').Protob;
+var decoders   = require('./compiler/decoders').decoders;
+var encoders   = require('./compiler/encoders').encoders;
+var EnumValue  = require('./enum').EnumValue;
+
+/**
+ * The base class for all compiled protobuf messages.
+ * Message instances may have additional fields to what is defined in the .proto file (dynamic fields)
+ * but these fields are ignored when encoding.
+ *
+ * Once a Message is compiled, it may have it's definition updated, but it will still be the same constructor function instance.
+ * Messages may have any behavior needed added to them by extending them, but should be careful not to name these fields by the same
+ * name as defined in the protobuf definition.
+ *
+ * @param {object} [opts] - An object with values corresponding to instance attributes. All attributes wil be made available on the instance.
+ * @constructor
+ *
+ * @example
+ *    var MyMessage = Protob.v.my.scope.MyMessage;
+ *
+ *    MyMessage.prototype.helpMe = function() { return 'help'; }
+ *
+ *    var myMessage = new MyMessage({with: "some", field: "values"});
+ *    myMessage.helpMe(); // 'help'
+ */
+function Message(opts) {
+  opts = opts || {};
+  var self = this;
+
+  this.setDefaults();
+
+  // Apply all after initializers on this message
+  [Message.afterInitialize, this.constructor.afterInitialize].forEach(function(funcs) {
+    if ( !funcs ) { return; }
+    funcs.forEach(function(func) { func.call(self); });
+  });
+
+  // Set the values passed in on this object
+  Object.getOwnPropertyNames(opts).forEach(function(name){
+    self[name] = opts[name];
+  });
+
+};
+
+/**
+ * A collection of functions to run after each message is initialized. This is global to all Messages.
+ */
+Message.afterInitialize = [];
+
+/**
+ * When a protocol buffer is compiled from .json A new message class is created by inheriting from Message.
+ * The updateDescriptor is then called with the raw descriptor that came from the .json file.
+ * This descriptor maps to a google.protobuf.DescriptorProto
+ *
+ * Update descriptor augments the constructor function with information about
+ *
+ * &lt;ul>
+ *    &lt;li>The Descriptor&lt;/li>
+ *    &lt;li>The name of the message&lt;/li>
+ *    &lt;li>The full name including package&lt;/li>
+ *    &lt;li>Attaches any extensions&lt;/li>
+ *    &lt;li>Attaches any options&lt;/li>
+ *    &lt;li>Adds some indecies for looking up field definitions&lt;/li>
+ *    &lt;li>Updates the reset, encode, decode and finalize methods on the constructor&lt;/li>
+ *  &lt;/ul>
+ *
+ * You shouldn't call this directly.
+ *
+ * @param {object} desc - The descriptor. A Javascript version of google.protobuf.DescriptorProto
+ * @protected
+ */
+Message.updateDescriptor = function(desc) {
+  var self = this;
+  this.descriptor     = desc;
+  this.clazz          = desc.name;
+  this.extensions     = this.extension;
+  this.fullName       = this.parent + "." + desc.name;
+  this.extensionRange = desc.extension_range;
+  this.opts           = desc.options;
+  this.fieldsById     = {};
+  this.fieldsByPkg    = {};
+
+  this.reset    = Message.reset;
+  this.finalize = Message.finalize;
+  this.decode   = Message.decode;
+  this.encode   = Message.encode;
+};
+
+/**
+ * Reset the descriptor
+ * @private
+ */
+Message.reset = function() {
+  var fields = this.fields = {};
+  if( Array.isArray(this.descriptor.field) ){
+    this.descriptor.field.forEach( function(f) {
+      fields[f.name] = f;
+    });
+  }
+};
+
+/**
+ * Expands out all descriptors on this message
+ * Looks at the type of the message, and attaches the relevant constructor to the descriptor
+ * @private
+ */
+function expandDescriptors(descriptor) {
+  var TYPE  = registry['google.protobuf.FieldDescriptorProto.Type'];
+  var LABEL = registry['google.protobuf.FieldDescriptorProto.Label'];
+  if ( Array.isArray(descriptor.field) ) {
+    descriptor.field.forEach(function(field) {
+      field.repeated = LABEL.fetch(field.label) == LABEL.fetch("LABEL_REPEATED");
+      field.required = LABEL.fetch(field.label) == LABEL.fetch("LABEL_REQUIRED");
+      var type = TYPE.fetch(field.type || field.type_name);
+      field.fieldType = type.name;
+      if ( type.name == 'TYPE_MESSAGE' || type.name == 'TYPE_ENUM') {
+        var name = field.type_name.replace(/^\./, '');
+        field.descriptor = registry[name].descriptor;
+        field.concrete   = registry[name];
+      }
+    });
+  }
+};
+
+/**
+ * Finalizes the message descriptor and message marking it complete
+ * @private
+ */
+Message.finalize = function() {
+  if ( _.isEqual(this._finalDesc, this.descriptor ) ) { return; }
+
+  var desc = this.descriptor,
+      self = this;
+
+  this.reset();
+
+  if ( desc.field &amp;&amp; Array.isArray(desc.field) ) {
+    desc.field.forEach(function(field) {
+      self.fieldsById[field.number] = field;
+      if(field.extendee){
+        self.fieldsByPkg[field.pkg] = self.fieldsByPkg[field.pkg] || [];
+        self.fieldsByPkg[field.pkg].push(field);
+      } else {
+        self.fieldsByPkg[undefined] = self.fieldsByPkg[undefined] || [];
+        self.fieldsByPkg[undefined].push(field);
+      }
+    });
+
+    this.orderedFields  = desc.field.sort(function(a,b) {
+      if( a.number &lt; b.number ) {
+        return -1;
+      } else if ( a.number > b.number ) {
+        return 1;
+      } else {
+        return 0;
+      }
+    });
+  }
+
+  var TYPE  = registry['google.protobuf.FieldDescriptorProto.Type'];
+  this.type = TYPE.fetch("TYPE_MESSAGE");
+
+  this.descriptor.concrete = this;
+
+  expandDescriptors(this.descriptor);
+
+  this._finalDesc = this.descriptor;
+  if( !Object.isFrozen(this.descriptor) ) { Object.freeze(this.descriptor); }
+};
+
+/**
+ * coorces the field into the correct type.
+ * @param {object} field - The finalized field descriptor
+ * @param {*} value - The value that the field should have
+ * @param {object} opts - An options hash passed down to the coorcers
+ * @private
+ * @throws Error - When there is an incorect type this will throw.
+ * @return {*} - An object compatible with the protocol buffer definition for this field
+ */
+function encodeField(field, value, opts) {
+  var self = this;
+  var val;
+  var TYPE  = registry['google.protobuf.FieldDescriptorProto.Type'];
+  if ( field.fieldType == "TYPE_ENUM" ){
+    var typeName = field.type_name.replace(/^\./, '');
+    val = coorcers[field.fieldType](field.name, registry[typeName]).call(self, value, opts);
+  } else if ( field.fieldType == "TYPE_MESSAGE" ) {
+    val = coorcers[field.fieldType](field.name, field).call(self, value, opts);
+  } else {
+    val = coorcers[field.fieldType](field.name).call(self, value, opts);
+  }
+  return val;
+};
+
+/**
+ * Fetches the full EnumValue for a field given it's current value.
+ * @param {string} fieldName - The name of the field to fetch the current EnumValue for
+ * @return {Protob.EnumValue|undefined} - The current value of the enum field
+ */
+Message.prototype.enumFor = function(fieldName){
+  var field;
+  if(!this[fieldName]){
+    return;
+  } else {
+    if(this[fieldName] instanceof EnumValue){
+      return this[fieldName];
+    } else {
+      field = this.constructor.fieldsByName[fieldName];
+      if(!field){ throw new Error('Field ' + fieldName + ' not defined'); }
+      return field.concrete.fetch(this[fieldName]);
+    }
+  }
+}
+
+/**
+ * Fetches the current numeric value of the specified enum value
+ * @param {string} fieldName - The name of the field
+ * @return {integer} - The protobuf id of the field
+ */
+Message.prototype.enumValue = function(fieldName){
+  var _enum;
+  _enum = this.enumFor(fieldName);
+  if(!_enum){ return; }
+  return _enum.number;
+}
+
+/**
+ * Fetches the current name value of the specified enum value
+ * @param {string} fieldName - The name of the field
+ * @return {string} - The name of the EnumValue
+ */
+Message.prototype.enumName = function(fieldName){
+  var _enum;
+  _enum = this.enumFor(fieldName);
+  if(!_enum){ return; }
+  return _enum.name;
+}
+
+/**
+ * Sets the default values on the message as defined by any defaults in the proto definition
+ * This is called by the initializer
+ * @private
+ */
+Message.prototype.setDefaults = function(){
+  if(!this.constructor.descriptor) { return; }
+  if(!this.constructor.descriptor.field) { return; }
+  var fields = this.constructor.descriptor.field || [];
+
+  for(var i=0; i&lt;fields.length; i++){
+    if(fields[i].default_value){
+      if(fields[i].fieldType == 'TYPE_BOOL') {
+        this[fields[i].name] = fields[i].default_value != "false";
+      } else {
+        this[fields[i].name] = fields[i].default_value;
+      }
+    }
+  }
+};
+
+/**
+ * Coorce and return only values defined in the protobuf definition
+ *
+ * @param {object} opts - Options
+ * @param {array} [opts.extensions] - An array of package names. Any extensions that are found, that are not in the extensions list are excluded. By default, all fields are included
+ * @param {string} opts.enums - Select which style of ENUM rendering. 'full', 'name' or 'value' values. Default 'value'
+ *
+ * @return {Protob.Message} - The fully coorced message
+ */
+Message.prototype.protoValues = function(opts){
+  opts = opts || {};
+  var out = {},
+      self = this,
+      fields = this.constructor.descriptor.field || [],
+      fieldsByPkg = this.constructor.fieldsByPkg;
+
+  if(opts.extensions){
+    fields = fieldsByPkg[undefined] || [];
+    if(!Array.isArray(opts.extensions)) opts.extensions = Array(opts.extensions);
+    opts.extensions.forEach(function(pkg){ fields = fields.concat(fieldsByPkg[pkg] || []) });
+  }
+
+  fields.forEach(function(field) {
+    var value = self[field.name],
+        isMsg = field.fieldType === 'TYPE_MESSAGE';
+    if ( field.repeated ) {
+      if ( value === undefined || value === null ){ out[field.name] = []; return; }
+      if ( !Array.isArray(value) ) { value = [value]; }
+      out[field.name] = value.map(function(val) {
+        var item = encodeField.call(self, field, val, opts);
+        if(isMsg &amp;&amp; item) { item = item.protoValues(opts) }
+        return item;
+      });
+    } else {
+      var val = encodeField.call(self, field, value, opts);
+      if ( val !== undefined &amp;&amp; val !== null ) {
+        if(isMsg &amp;&amp; val) { val = val.protoValues(opts) }
+        out[field.name] = val;
+      }
+    }
+  });
+
+  return new this.constructor(out);
+};
+
+/**
+ * Fetch the field with the given id
+ * @param {integer} id - The id of the field as specified in the proto file
+ * @return {object|undefined} - The field definition
+ */
+Message.prototype.fieldById = function(id) {
+  return this.constructor.fieldsById[id];
+};
+
+/**
+ * Decodes a buffer into an instantiated protocolbuffer message
+ * This method is attached to each messages constructor
+ * @param {ByteBuffer} buffer - The byte buffer holding the encoded protobuf message
+ * @param {integer} [length] - The length we're up to
+ * @param {object} [opts] - An options hash
+ * @see Message#decode
+ * @example
+ *     MyMessage.decode(buffer);
+ * @return {Protob.Message}
+ * @throws - Will throw if it cannot decode the message
+ */
+Message.decode = function(buffer, length, opts){
+  if(typeof length === 'object' &amp;&amp; !opts) {
+    opts = length;
+    length = undefined;
+  }
+
+  buffer = buffer ? (buffer instanceof ByteBuffer ? buffer : ByteBuffer.wrap(buffer)) : new ByteBuffer();
+  var le = buffer.littleEndian;
+  try {
+    var msg = (new this()).decode(buffer.LE(), length, opts);
+    buffer.littleEndian = le;
+    return msg;
+  } catch (e) {
+    buffer.littleEndian = le;
+    throw(e);
+  }
+};
+
+/**
+ * Decodes the raw protobuf message into this instance
+ * @param {ByteBuffer} buffer - The buffer to get the objects from
+ * @param {integer} length - The length of the buffer to read
+ * @param {object} [opts] - Options passed to the decoder functions
+ */
+Message.prototype.decode = function(buffer, length, opts) {
+  length = typeof length === 'number' ? length : -1;
+  var self = this;
+  var start = buffer.offset;
+  var msg = new (this.constructor)();
+  while (buffer.offset &lt; start+length || (length == -1 &amp;&amp; buffer.remaining() > 0)) {
+    var tag = buffer.readVarint32();
+    var wireType = tag &amp; 0x07,
+        id = tag >> 3;
+    var field = this.fieldById(id); // Message.Field only
+    if (!field) {
+        // "messages created by your new code can be parsed by your old code: old binaries simply ignore the new field when parsing."
+       switch (wireType) {
+         case Protob.WIRE_TYPES.VARINT:
+           buffer.readVarint32();
+           break;
+          case Protob.WIRE_TYPES.BITS32:
+            buffer.offset += 4;
+            break;
+          case Protob.WIRE_TYPES.BITS64:
+            buffer.offset += 8;
+            break;
+          case Protob.WIRE_TYPES.LDELIM:
+            var len = buffer.readVarint32();
+            buffer.offset += len;
+            break;
+          default:
+            throw(new Error("Illegal wire type of unknown field "+id+" in "+this.constructor.fullName+"#decode: "+wireType));
+        }
+      continue;
+    }
+    if (field.repeated &amp;&amp; (!field.options || !field.options.packed)) {
+      msg[field.name] = msg[field.name] || [];
+      msg[field.name].push(decoders.field(wireType, buffer, false, field, opts));
+    } else {
+      msg[field.name] = decoders.field(wireType, buffer, false, field, opts);
+    }
+  }
+  // Check if all required fields are present
+  var LABEL = registry['google.protobuf.FieldDescriptorProto.Label'];
+  this.constructor.descriptor.field.forEach( function(field) {
+    if ( LABEL.fetch(field.label) != LABEL.fetch("LABEL_REQUIRED")) { return; }
+    if ( msg[field.name] === undefined || msg[field.name] === null ){
+      var err = new Error("Missing field "+field.name);
+      err.decoded = msg;
+      throw err;
+    }
+  });
+  return msg;
+};
+
+/**
+ * Encode a protocol buffer message.
+ * Before encoding, it will ensure consistency by calling Message#protoValues
+ *
+ * Usually used by calling the instance version
+ *
+ * @param {Protob.Message} message - The instance to encode
+ * @param {ByteBuffer} [buffer] - The buffer to encode into
+ * @throws Error - When the protocol buffer is invalid
+ * @return {ByteBuffer} - The encoded message
+ * @see Message#encode
+ * @private
+ * @example
+ *   msg = new MyMessage({foo: 'bar'})
+ *   raw = Message.encode(msg);
+ */
+Message.encode = function(message, buffer){
+  buffer = buffer || new ByteBuffer();
+  var le = buffer.littleEndian;
+  try {
+    if ( !(message instanceof this) ) { message = new this(message); }
+    return message.encode(buffer.LE()).flip().LE(le);
+  } catch (e) {
+    console.error(e);
+    buffer.LE(le);
+    throw(e);
+  }
+};
+
+/**
+ * Encode the message, optionally to a buffer
+ * @param {ByteBuffer} buffer - The buffer to encode into. Usually you won't use this.
+ *
+ * @throws Error - When the message is invalid
+ * @example
+ *    msg = new MyMessage({foo: 'bar'});
+ *    buf = msg.encode();
+ *
+ * @return {ByteBuffer} - The encoded message
+ */
+Message.prototype.encode = function(buffer) {
+  if ( !buffer ) { return this.constructor.encode(this); }
+
+  var fields = this.constructor.orderedFields,
+      self = this,
+      protoFields = self.protoValues(),
+      fieldEncoder = encoders.field;
+
+  fields.forEach(function(field) {
+    if( field.required &amp;&amp; (protoFields[field.name] === undefined || protoFields[field.name] === null )) {
+      var err = new Error("Missing at least one required field for "+self.constructor.fullName+": "+field.name);
+      throw(err);
+    }
+  });
+
+  fields.forEach(function(field){
+    fieldEncoder(field, protoFields[field.name], buffer);
+  });
+
+  return buffer;
+};
+
+exports.Message = Message;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Index</a></h2><h3>Modules</h3><ul><li><a href="module-coorcers.html">coorcers</a></li><li><a href="module-dencoders.html">dencoders</a></li><li><a href="module-encoders.html">encoders</a></li><li><a href="module-protob.html">protob</a></li><li><a href="compiler.html">protob/compiler</a></li><li><a href="protofile.html">protob/compiler/protofile</a></li><li><a href="enum.html">protob/enum</a></li><li><a href="message.html">protob/message</a></li><li><a href="service.html">protob/service</a></li><li><a href="_.html">protob/util
+A simple set of utilities</a></li></ul><h3>Classes</h3><ul><li><a href="protofile-Source.html">Source</a></li><li><a href="compiler-Compiler.html">Compiler</a></li><li><a href="enum-Enum.html">Enum</a></li><li><a href="enum-EnumValue.html">EnumValue</a></li><li><a href="message-Message.html">Message</a></li><li><a href="service-Service.html">Service</a></li></ul><h3>Namespaces</h3><ul><li><a href="Protob.html">Protob</a></li></ul><h3>Global</h3><ul><li><a href="global.html#TYPE_BOOL">TYPE_BOOL</a></li><li><a href="global.html#TYPE_BYTES">TYPE_BYTES</a></li><li><a href="global.html#TYPE_DOUBLE">TYPE_DOUBLE</a></li><li><a href="global.html#TYPE_ENUM">TYPE_ENUM</a></li><li><a href="global.html#TYPE_FIXED32">TYPE_FIXED32</a></li><li><a href="global.html#TYPE_FIXED64">TYPE_FIXED64</a></li><li><a href="global.html#TYPE_FLOAT">TYPE_FLOAT</a></li><li><a href="global.html#TYPE_INT32">TYPE_INT32</a></li><li><a href="global.html#TYPE_INT64">TYPE_INT64</a></li><li><a href="global.html#TYPE_MESSAGE">TYPE_MESSAGE</a></li><li><a href="global.html#TYPE_SFIXED32">TYPE_SFIXED32</a></li><li><a href="global.html#TYPE_SFIXED64">TYPE_SFIXED64</a></li><li><a href="global.html#TYPE_SINT32">TYPE_SINT32</a></li><li><a href="global.html#TYPE_SINT64">TYPE_SINT64</a></li><li><a href="global.html#TYPE_STRING">TYPE_STRING</a></li><li><a href="global.html#TYPE_UINT32">TYPE_UINT32</a></li><li><a href="global.html#TYPE_UINT64">TYPE_UINT64</a></li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha3</a> on Wed Jan 15 2014 09:47:02 GMT-0800 (PST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

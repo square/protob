@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: compiler/encoders.js</title>
+    
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+    
+    <h1 class="page-title">Source: compiler/encoders.js</h1>
+    
+    
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * A collection of encoding functions that act on a value and encode it in wire format
+ * @module protob
+ * @namespace encoders
+ * @exports encoders
+ */
+var Protob = require('../protob').Protob,
+    ByteBuffer = require('../protob').ByteBuffer,
+    EnumValue = require('../enum').EnumValue;
+
+var encoders = {
+  /**
+   * Encode an int32
+   * @function TYPE_INT32
+   * @param {object} field - The field object
+   * @param {integer} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_INT32: function(field, value, buffer){ buffer.writeVarint32(value); },
+
+  /**
+   * Encode an uint32
+   * @function TYPE_UINT32
+   * @param {object} field - The field object
+   * @param {integer} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_UINT32: function(field, value, buffer){ buffer.writeVarint32(value); },
+
+  /**
+   * Encode an sint32 field
+   * @function TYPE_SINT32
+   * @param {object} field - The field object
+   * @param {integer} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_SINT32: function(field, value, buffer) { buffer.writeZigZagVarint32(value); },
+
+  /**
+   * Encode an fixed32 field
+   * @function TYPE_FIXED32
+   * @param {object} field - The field object
+   * @param {number} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_FIXED32: function(field, value, buffer) { buffer.writeUint32(value); },
+
+  /**
+   * Encode an sfixed32 field
+   * @function TYPE_SFIXED32
+   * @param {object} field - The field object
+   * @param {number} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_SFIXED32: function(field, value, buffer) { buffer.writeInt32(value); },
+
+  /**
+   * Encode an int64 field
+   * @function TYPE_INT64
+   * @param {object} field - The field object
+   * @param {Long|number} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_INT64: function(field, value, buffer) { buffer.writeVarint64(value); },
+
+  /**
+   * Encode an uint64 field
+   * @function TYPE_UINT64
+   * @param {object} field - The field object
+   * @param {Long|number} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_UINT64: function(field, value, buffer) { buffer.writeVarint64(value); },
+
+  /**
+   * Encode an sint64 field
+   * @function TYPE_SINT64
+   * @param {object} field - The field object
+   * @param {Long|number} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_SINT64: function(field, value, buffer) { buffer.writeZigZagVarint64(value); },
+
+  /**
+   * Encode an fixed64 field
+   * @function TYPE_FIXED64
+   * @param {object} field - The field object
+   * @param {Long|number} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_FIXED64: function(field, value, buffer) { buffer.writeUint64(value); },
+
+  /**
+   * Encode an sfixed64 field
+   * @function TYPE_SFIXED64
+   * @param {object} field - The field object
+   * @param {Long|number} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_SFIXED64: function(field, value, buffer) { buffer.writeInt64(value); },
+
+  /**
+   * Encode an bool field
+   * @function TYPE_BOOL
+   * @param {object} field - The field object
+   * @param {true|false} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_BOOL: function(field, value, buffer) { buffer.writeVarint32(value ? 1 : 0); },
+
+  /**
+   * Encode an float field
+   * @function TYPE_FLOAT
+   * @param {object} field - The field object
+   * @param {number} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_FLOAT: function(field, value, buffer) { buffer.writeFloat32(value); },
+
+  /**
+   * Encode an double field
+   * @function TYPE_DOUBLE
+   * @param {object} field - The field object
+   * @param {number} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_DOUBLE: function(field, value, buffer) { buffer.writeFloat64(value); },
+
+  /**
+   * Encode an string field
+   * @function TYPE_STRING
+   * @param {object} field - The field object
+   * @param {string} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_STRING: function(field, value, buffer) { buffer.writeVString(value); },
+
+  /**
+   * Encode an enum field
+   * @function TYPE_ENUM
+   * @param {object} field - The field object
+   * @param {EnumValue|integer} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_ENUM: function(field, value, buffer) {
+    if(value instanceof EnumValue) {
+      buffer.writeVarint32(value.number);
+    } else {
+      buffer.writeVarint32(value);
+    }
+  },
+
+  /**
+   * Encode an bytes field
+   * @function TYPE_BYTES
+   * @param {object} field - The field object
+   * @param {ByteBuffer} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_BYTES: function(field, value, buffer) {
+    if (value.offset > value.length) { // Forgot to flip?
+      buffer = buffer.clone().flip();
+    }
+    buffer.writeVarint32(value.remaining());
+    buffer.append(value);
+    value.offset = 0;
+  },
+
+  /**
+   * Encode a message field
+   * @function TYPE_MESSAGE
+   * @param {object} field - The field object
+   * @param {Protob.Message} value - The unencoded value of the field
+   * @param {ByteBuffer} buffer - The buffer to write the encoded value into
+   * @protected
+   */
+  TYPE_MESSAGE: function(field, value, buffer) {
+    if ( !value ) { return; }
+    if ( !( value instanceof field.descriptor.concrete ) ) {
+      value = new field.descriptor.concrete(value);
+    }
+    var bb = value.encode();
+    buffer.writeVarint32(bb.length);
+    buffer.append(bb);
+  },
+
+  field: function(field, value, buffer){
+    if ( field.type === null ) {
+      throw(new Error("[INTERNAL] Unresolved type in "+field.name+": "+field.fieldType));
+    }
+    if (value === null || value === undefined || (field.repeated &amp;&amp; (!value || !value.length) )) return buffer; // Optional omitted
+
+    var encoder = encoders[field.fieldType];
+
+    try {
+      if ( field.repeated ) {
+        var i;
+        if (field.options &amp;&amp; field.options.packed) {
+          // "All of the elements of the field are packed into a single key-value pair with wire type 2
+          // (length-delimited). Each element is encoded the same way it would be normally, except without a
+          // tag preceding it."
+          buffer.writeVarint32((field.number &lt;&lt; 3) | Protob.WIRE_TYPES.LDELIM);
+          buffer.ensureCapacity(buffer.offset += 1); // We do not know the length yet, so let's assume a varint of length 1
+          var start = buffer.offset; // Remember where the contents begin
+          value.forEach(function(v) { encoder(field, v, buffer); });
+
+          var len = buffer.offset-start;
+          var varintLen = ByteBuffer.calculateVarint32(len);
+          if (varintLen > 1) { // We need to move the contents
+            var contents = buffer.slice(start, buffer.offset);
+            start += varintLen-1;
+            buffer.offset = start;
+            buffer.append(contents);
+          }
+          buffer.writeVarint32(len, start-varintLen);
+        } else {
+          // "If your message definition has repeated elements (without the [packed=true] option), the encoded
+          // message has zero or more key-value pairs with the same tag number"
+          value.forEach(function(val){
+            buffer.writeVarint32((field.number &lt;&lt; 3) | Protob.TYPES[field.fieldType].wireType);
+            encoder(field, val, buffer);
+          });
+        }
+      } else {
+        buffer.writeVarint32((field.number &lt;&lt; 3) | Protob.TYPES[field.fieldType].wireType);
+        encoder(field, value, buffer);
+      }
+    } catch(e) {
+       throw(new Error("Illegal value for "+field.name+": "+value+" ("+e+")"));
+    }
+    return buffer;
+  }
+};
+
+exports.encoders = encoders;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Index</a></h2><h3>Modules</h3><ul><li><a href="module-coorcers.html">coorcers</a></li><li><a href="module-dencoders.html">dencoders</a></li><li><a href="module-encoders.html">encoders</a></li><li><a href="module-protob.html">protob</a></li><li><a href="compiler.html">protob/compiler</a></li><li><a href="protofile.html">protob/compiler/protofile</a></li><li><a href="enum.html">protob/enum</a></li><li><a href="message.html">protob/message</a></li><li><a href="service.html">protob/service</a></li><li><a href="_.html">protob/util
+A simple set of utilities</a></li></ul><h3>Classes</h3><ul><li><a href="protofile-Source.html">Source</a></li><li><a href="compiler-Compiler.html">Compiler</a></li><li><a href="enum-Enum.html">Enum</a></li><li><a href="enum-EnumValue.html">EnumValue</a></li><li><a href="message-Message.html">Message</a></li><li><a href="service-Service.html">Service</a></li></ul><h3>Namespaces</h3><ul><li><a href="Protob.html">Protob</a></li></ul><h3>Global</h3><ul><li><a href="global.html#TYPE_BOOL">TYPE_BOOL</a></li><li><a href="global.html#TYPE_BYTES">TYPE_BYTES</a></li><li><a href="global.html#TYPE_DOUBLE">TYPE_DOUBLE</a></li><li><a href="global.html#TYPE_ENUM">TYPE_ENUM</a></li><li><a href="global.html#TYPE_FIXED32">TYPE_FIXED32</a></li><li><a href="global.html#TYPE_FIXED64">TYPE_FIXED64</a></li><li><a href="global.html#TYPE_FLOAT">TYPE_FLOAT</a></li><li><a href="global.html#TYPE_INT32">TYPE_INT32</a></li><li><a href="global.html#TYPE_INT64">TYPE_INT64</a></li><li><a href="global.html#TYPE_MESSAGE">TYPE_MESSAGE</a></li><li><a href="global.html#TYPE_SFIXED32">TYPE_SFIXED32</a></li><li><a href="global.html#TYPE_SFIXED64">TYPE_SFIXED64</a></li><li><a href="global.html#TYPE_SINT32">TYPE_SINT32</a></li><li><a href="global.html#TYPE_SINT64">TYPE_SINT64</a></li><li><a href="global.html#TYPE_STRING">TYPE_STRING</a></li><li><a href="global.html#TYPE_UINT32">TYPE_UINT32</a></li><li><a href="global.html#TYPE_UINT64">TYPE_UINT64</a></li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha3</a> on Wed Jan 15 2014 09:47:02 GMT-0800 (PST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
