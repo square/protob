@@ -1,6 +1,6 @@
 {
   "name": "protob",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Protocol Buffers",
   "main": "index.js",
   "repository": {
@@ -19,7 +19,7 @@
   "license": "BSD-2-Clause",
   "dependencies": {
     "underscore": "~1.5.2",
-    "bytebuffer": "~2.0.0",
+    "bytebuffer": "2.0.1",
     "glob": "~3.2.7",
     "q": "~0.9.7",
     "optimist": "~0.6.0"
