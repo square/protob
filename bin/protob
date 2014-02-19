@@ -52,6 +52,8 @@ var protofile = new Protofile();
 if( !fs.existsSync(Protofile.outputDir)){ fs.mkdirSync(Protofile.outputDir); }
 
 protofile.resolve().then( function(){
+  var compileStart = Date.now(), finish;
+
   try{
   console.error("Resolved Protofiles");
   cmd = ["protoc"];
@@ -72,7 +74,7 @@ protofile.resolve().then( function(){
     if( error ) {
       console.error(stderr);
     } else {
-      console.error("Done. Took", Date.now() - start, "ms");
+      console.error("Done. Took", (Date.now() - start)/1000, "s total (", (Date.now() - compileStart)/1000, "s compile time )" );
     }
   });
 

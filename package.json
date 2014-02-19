@@ -1,6 +1,6 @@
 {
   "name": "protob",
-  "version": "0.3.6",
+  "version": "0.4.0",
   "description": "Protocol Buffers",
   "main": "index.js",
   "repository": {
@@ -22,7 +22,9 @@
     "bytebuffer": "2.0.1",
     "glob": "~3.2.7",
     "q": "~0.9.7",
-    "optimist": "~0.6.0"
+    "optimist": "~0.6.0",
+    "unzip": "~0.1.9",
+    "rimraf": "~2.2.6"
   },
   "devDependencies": {
     "mocha": "~1.14.0",
