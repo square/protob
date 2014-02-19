@@ -4,6 +4,7 @@ var index = require(Path.join(__dirname, "../../index"));
 var Protob = index.Protob;
 var Assert = require('assert');
 var r = Protob.registry;
+var Long = index.Protob.Long;
 
 describe("protofile", function(){
   it("compiles the protos to the registry", function(){
@@ -99,13 +100,13 @@ describe("protofile", function(){
     it("converts bytes", function(){
       var char = new r['test.fox.simpsons.Character']({name: "Homer"});
       var stuff = new Stuff({ bytes_value: char.encode() });
-      Assert.deepEqual(char.constructor.decode(stuff.protoValues().bytes_value), {name: "Homer", is_evil: true, is_lovable: false});
+      Assert.deepEqual(char.constructor.decode(stuff.protoValues().bytes_value), {name: "Homer", is_evil: true, is_lovable: false, joke_count: new Long(0, 0, false)});
     });
 
     it("handles messages", function(){
       var stuff = new Stuff({message_value: { name: "Marge" }});
       Assert(stuff.protoValues().message_value instanceof r['test.fox.simpsons.Character']);
-      Assert.deepEqual(stuff.protoValues().message_value, { name: "Marge", is_evil: true, is_lovable: false });
+      Assert.deepEqual(stuff.protoValues().message_value, { name: "Marge", is_evil: true, is_lovable: false, joke_count: new Long(0, 0, false)});
     });
 
     describe("conversion options", function(){
@@ -233,6 +234,7 @@ describe("protofile", function(){
       var char = new r['test.fox.simpsons.Character']({name: "Blob"});
       Assert.equal(char.is_evil, true);
       Assert.equal(char.is_lovable, false);
+      Assert.deepEqual(char.joke_count, new Long(0, 0, false));
     });
   });
 
