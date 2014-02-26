@@ -8,6 +8,7 @@ message Character {
   optional uint32 age           = 3;
   optional bool is_evil         = 4 [default = true];
   optional bool is_lovable      = 5 [default = false];
+  optional int64 joke_count    = 6 [default = 0];
 }
 
 message Stuff {

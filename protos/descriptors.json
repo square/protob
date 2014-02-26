@@ -440,14 +440,14 @@
             "number": 10,
             "label": 1,
             "type": 8,
-            "default_value": "false"
+            "default_value": false
           },
           {
             "name": "java_generate_equals_and_hash",
             "number": 20,
             "label": 1,
             "type": 8,
-            "default_value": "false"
+            "default_value": false
           },
           {
             "name": "optimize_for",
@@ -468,21 +468,21 @@
             "number": 16,
             "label": 1,
             "type": 8,
-            "default_value": "false"
+            "default_value": false
           },
           {
             "name": "java_generic_services",
             "number": 17,
             "label": 1,
             "type": 8,
-            "default_value": "false"
+            "default_value": false
           },
           {
             "name": "py_generic_services",
             "number": 18,
             "label": 1,
             "type": 8,
-            "default_value": "false"
+            "default_value": false
           },
           {
             "name": "uninterpreted_option",
@@ -526,14 +526,14 @@
             "number": 1,
             "label": 1,
             "type": 8,
-            "default_value": "false"
+            "default_value": false
           },
           {
             "name": "no_standard_descriptor_accessor",
             "number": 2,
             "label": 1,
             "type": 8,
-            "default_value": "false"
+            "default_value": false
           },
           {
             "name": "uninterpreted_option",
@@ -572,14 +572,14 @@
             "number": 5,
             "label": 1,
             "type": 8,
-            "default_value": "false"
+            "default_value": false
           },
           {
             "name": "deprecated",
             "number": 3,
             "label": 1,
             "type": 8,
-            "default_value": "false"
+            "default_value": false
           },
           {
             "name": "experimental_map_key",
@@ -592,7 +592,7 @@
             "number": 10,
             "label": 1,
             "type": 8,
-            "default_value": "false"
+            "default_value": false
           },
           {
             "name": "uninterpreted_option",
@@ -636,7 +636,7 @@
             "number": 2,
             "label": 1,
             "type": 8,
-            "default_value": "true"
+            "default_value": true
           },
           {
             "name": "uninterpreted_option",

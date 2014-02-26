@@ -33,14 +33,25 @@
             "number": 4,
             "label": 1,
             "type": 8,
-            "default_value": "true"
+            "default_value": true
           },
           {
             "name": "is_lovable",
             "number": 5,
             "label": 1,
             "type": 8,
-            "default_value": "false"
+            "default_value": false
+          },
+          {
+            "name": "joke_count",
+            "number": 6,
+            "label": 1,
+            "type": 3,
+            "default_value": {
+              "low": 0,
+              "high": 0,
+              "unsigned": false
+            }
           }
         ]
       },
