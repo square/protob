@@ -30,9 +30,7 @@
     "grunt-cli": "~0.1.11",
     "grunt": "~0.4.2",
     "grunt-simple-mocha": "~0.4.0",
-    "grunt-contrib-watch": "~0.5.3",
-    "jsdocs-client": "*",
-    "jsdoc": ""
+    "grunt-contrib-watch": "~0.5.3"
   },
   "publishConfig": {
     "registry": "http://npm.corp.squareup.com:8000"
