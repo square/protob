@@ -2,16 +2,29 @@ package test.fox.simpsons;
 
 import 'test/common.proto';
 
+enum ThingsLiked {
+  SKATEBOARD = 1;
+  BEER = 2;
+  DONUTS = 3;
+}
+
 message Character {
-  required string name          = 1;
+  required string name          = 1 [(test.common.my_ext).nick = 'killa'];
   optional common.Gender gender = 2;
   optional uint32 age           = 3;
   optional bool is_evil         = 4 [default = true];
   optional bool is_lovable      = 5 [default = false];
-  optional int64 joke_count    = 6 [default = 0];
+  optional int64 joke_count     = 6 [default = 1];
+  repeated ThingsLiked things_i_like = 7;
 }
 
 message Stuff {
+
+  enum GreetingType {
+    NICE  = 1;
+    NASTY = 2;
+  }
+
   optional string string_value = 1;
   optional double double_value = 2;
   optional float  float_value  = 3;
@@ -28,15 +41,23 @@ message Stuff {
   optional bool bool_value = 14;
   optional bytes bytes_value = 15;
   optional Character message_value = 16;
-
-  enum GreetingType {
-    NICE  = 1;
-    NASTY = 2;
-  }
+  repeated GreetingType repeated_enum = 17;
+  repeated int64 repeated_long = 18;
+  repeated Character repeated_message = 19;
+  optional GreetingType greeting = 20;
 
   extend test.common.Extendable {
     optional bool greet = 1000;
     optional string msg = 1001;
     optional GreetingType greeting_type = 1002;
+    optional string name = 1003;
+  }
+}
+
+service MyService {
+  option (test.common.service_ext).nick = "Service yo";
+
+  rpc SomeMethod (Character) returns (Stuff) {
+    option (test.common.method_ext).nick = "Hai there";
   }
 }

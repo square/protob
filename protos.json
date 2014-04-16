@@ -1,0 +1,12 @@
+[
+  {
+    "nexus": "https://nexus.corp.squareup.com",
+    "repository": "releases",
+    "group_id": "com.squareup.protos",
+    "artifact_id": "all-protos",
+    "version": "RELEASE",
+    "paths": {
+      "/": ["/"]
+    }
+  }
+]

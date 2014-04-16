@@ -1,0 +1,96 @@
+#!/usr/bin/env node
+
+/**
+ * Detects extension collisions
+ */
+
+var argv = require('optimist').argv,
+    Path = require('path'),
+    Glob = require('glob'),
+    fs = require('fs'),
+    extensions = {},
+    collisions = {},
+    paths = argv._;
+
+var EXTENSION_LINE = /extend *([^\s]+) *{/,
+    START_BRACE = /({)/g,
+    END_BRACE = /(})/g,
+    EXTENSION_FIELD = /(optional|repeated|required) +([^\s]+) +([^\s]+) *= *(\d+)/,
+    COMMENT_LINE = /^\s*(\/\/|\*|\/\*|\*\/)/;
+
+paths.forEach(function (argPath) {
+  Glob.sync(Path.join(argPath, "**/*.proto")).forEach(function (filePath) {
+    var braceStack = [],
+        currentExtension = null;
+
+    fs.readFileSync(filePath).toString().split('\n').forEach(function (line) {
+      var extMatch, fieldMatch, fieldId,
+          startBraces, endBraces;
+
+      line = line.trim();
+
+      if (COMMENT_LINE.test(line)) return;
+
+      if (extMatch = line.match(EXTENSION_LINE)) currentExtension = extMatch[1];
+
+      if(currentExtension) {
+        startBraces = line.match(START_BRACE);
+        endBraces = line.match(END_BRACE);
+        if(startBraces) braceStack = braceStack.concat(startBraces);
+        if(endBraces) {
+          for(var i = 0; i < endBraces.length; i++) {
+            braceStack.pop();
+          }
+        }
+      }
+
+      if(currentExtension && (fieldMatch = line.match(EXTENSION_FIELD))) {
+        fieldId = fieldMatch[4];
+
+        extensions[currentExtension] = extensions[currentExtension] || {};
+        extensions[currentExtension][fieldId] = extensions[currentExtension][fieldId] || [];
+        extensions[currentExtension][fieldId].push(filePath);
+      }
+
+      if(!braceStack.length) currentExtension = null;
+    });
+  });
+});
+
+// Detect collisions
+Object.keys(extensions).forEach(function(objName) {
+  var fieldNames = Object.keys(extensions[objName]);
+
+  fieldNames.forEach(function(fieldName) {
+    if(extensions[objName][fieldName].length > 1) {
+      collisions[objName] = collisions[objName] || {};
+
+      collisions[objName][fieldName] = extensions[objName][fieldName];
+    }
+  });
+});
+
+if(Object.keys(collisions).length) {
+  console.error("Protocol Buffer Collisions Detected!\n");
+
+  Object.keys(collisions).forEach(function(objName) {
+    console.error(objName);
+    var fieldNames = Object.keys(collisions[objName]);
+
+    fieldNames.forEach(function(fieldName) {
+      console.error("  Field: ", fieldName);
+
+      collisions[objName][fieldName].forEach(function(path) {
+        console.error("    ", Path.relative('.', path));
+      });
+    });
+  });
+
+  process.exit(1);
+} else {
+  console.error("No extension collisions detected");
+  process.exit(0);
+}
+
+
+

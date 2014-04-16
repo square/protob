@@ -1,5 +1,10 @@
-var Assert = require('assert');
-var Enum = require('../lib/enum').Enum;
+require('./test_helper');
+var Assert = require('assert'),
+    Enum = require('../lib/enum').Enum,
+    registry = require('../lib/registry'),
+    goog = require('../lib/compiler/google-protos-defn'),
+    ed = goog.enumDescriptorProto,
+    evd = goog.enumValueDescriptorProto;
 
 describe("ENUM", function(){
   it("is a function", function(){
@@ -8,55 +13,40 @@ describe("ENUM", function(){
 
   describe("compiled enum", function(){
     var testValue;
-    var enumType;
 
     beforeEach(function(){
-      enumType = {
-        "name": "Type",
-        "value": [
-          { "name": "TYPE_DOUBLE", "number": 1 },
-          { "name": "TYPE_FLOAT", "number": 2 },
-          { "name": "TYPE_INT64", "number": 3 }
-        ],
-        "options": { "foo": "bar" }
-      };
-
-      testValue = new Enum("my.great.package");
-      testValue.updateDescriptor(enumType);
+      testValue = registry.lookup('test.common.Gender');
     });
 
     it("keeps track of it's parent namespace", function(){
-      Assert.equal("my.great.package", testValue.parent);
+      Assert.equal("test.common", testValue.parent);
     });
 
     it("keeps track of it's descriptor", function(){
-      Assert.equal(testValue.descriptor, enumType);
+
+      Assert.equal(testValue.descriptor instanceof registry.lookup('google.protobuf.EnumDescriptorProto'), true);
     });
 
     it("keeps track of it's class", function(){
-      Assert.equal(testValue.clazz, enumType.name);
+      Assert.equal(testValue.clazz, 'Gender');
     });
 
     it("sets the full name", function(){
-      Assert.equal(testValue.fullName, testValue.parent + "." + enumType.name);
-    });
-
-    it("fetches options", function(){
-      Assert.deepEqual(testValue.options(), {"foo": "bar"});
+      Assert.equal(testValue.fullName, 'test.common.Gender');
     });
 
     it("lets me fetch by value", function(){
       var val = testValue.byValue(1);
-      Assert.equal("TYPE_DOUBLE", val.name);
+      Assert.equal("FEMALE", val.name);
     });
 
     it("lets me fetch by id", function(){
-      var val = testValue.byName("TYPE_DOUBLE");
+      var val = testValue.byName("FEMALE");
       Assert.equal(1, val.number);
     });
 
     it('lets me fetch with a lower case enum' ,function() {
-      var val = testValue.byName('type_double');
+      var val = testValue.byName('female');
       Assert.equal(1,val.number);
     });
 
@@ -65,10 +55,10 @@ describe("ENUM", function(){
     });
 
     it("lets me fetch by id or name", function(){
-      var valByName = testValue.fetch("TYPE_DOUBLE");
+      var valByName = testValue.fetch("FEMALE");
       var valByNumber = testValue.fetch(1);
       var byNumber = testValue.byValue(1);
-      var byName = testValue.byName("TYPE_DOUBLE");
+      var byName = testValue.byName("FEMALE");
       Assert.deepEqual(byNumber, byName);
       Assert.deepEqual(byNumber, valByName);
       Assert.deepEqual(byNumber, valByNumber);
@@ -83,7 +73,7 @@ describe("ENUM", function(){
     });
 
     it("returns true for a valid name", function(){
-      Assert.equal(testValue.isValidName("TYPE_DOUBLE"), true);
+      Assert.equal(testValue.isValidName("MALE"), true);
     });
 
     it("returns false for a valid name", function(){
@@ -92,19 +82,18 @@ describe("ENUM", function(){
 
     it("returns a list of valid names", function(){
       var names = testValue.names().sort();
-      Assert.deepEqual(["TYPE_DOUBLE", "TYPE_FLOAT", "TYPE_INT64"], names);
+      Assert.deepEqual(["FEMALE", "MALE"], names);
     });
 
     it("returns a list of valid values", function(){
       var names = testValue.values().sort();
-      Assert.deepEqual([1,2,3], names);
+      Assert.deepEqual([1,2], names);
     });
 
     it("returns the available enum values", function(){
       var vals = [
-        { "name": "TYPE_DOUBLE", "number": 1 },
-        { "name": "TYPE_FLOAT", "number": 2 },
-        { "name": "TYPE_INT64", "number": 3 }
+        { "name": "FEMALE", "number": 1 },
+        { "name": "MALE", "number": 2 }
       ];
       Assert.deepEqual(vals, testValue.enumValues());
     });

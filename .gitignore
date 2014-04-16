@@ -2,5 +2,11 @@ protob*.tar
 scratch
 node_modules
 .git_proto_cache
+.proto_cache
+proto-bundle.json
+protos.json
 
+protos
 *.log
+protos
+.proto_cache

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-
 var Compiler = require('../lib/compiler').Compiler;
-var registry = Compiler.compile();
+var registry = require('../index').Protob.registry;
 var Util = require('util');
+var singleFile = process.env.SINGLE_FILE;
 
 var ByteBuffer = require('bytebuffer');
 
@@ -13,32 +13,64 @@ process.stdin.on("data", function(data) {
 });
 
 process.stdin.on("end", function(){
+  var start = Date.now();
+
   buffer.flip();
 
-  var Request  = registry["google.protobuf.compiler.CodeGeneratorRequest"];
-  var Response = registry["google.protobuf.compiler.CodeGeneratorResponse"];
-  var File     = registry["google.protobuf.compiler.CodeGeneratorResponse"];
 
-  var request  = Request.decode(buffer)
+  var Request  = registry.lookup("google.protobuf.compiler.CodeGeneratorRequest"),
+      Response = registry.lookup("google.protobuf.compiler.CodeGeneratorResponse"),
+      File     = registry.lookup("google.protobuf.compiler.CodeGeneratorResponse.File"),
+      request  = Request.decode(buffer.copy(), null, {}),
+      time = Date.now();
+
+  printTiming('Initial Decode', start);
+
+  // Need to ensure that we have all extensions present and compiled before decoding
+  Compiler.compileDescriptors(request.getf('proto_file'));
+  // request.getf('proto_file').forEach(function(file) { Compiler.compileDescriptor(file); });
+  printTiming('Initial Compile', time);
+
+  time = Date.now();
+
+  // Re-Read the buffer to make sure we've got all the extensions
+  request = Request.decode(buffer.copy(), null, {});
+  printTiming('Secondary decode', time);
+
   var response = new Response();
+  var singleFiles = [], fileSet;
   response.file = [];
 
-  request.proto_file.forEach(function(file){
-    console.error("FILE", file);
-    var f = new File();
-    f.name    = file.name.replace(/\.proto$/, '.json');
-    f.content = JSON.stringify([file], null, 2);
-    response.file.push(f);
+  request.getf('proto_file').forEach(function(file){ // FileDescriptorProto
+
+    var f = new File()
+    if(singleFile) {
+      singleFiles.push(file.asJSON({fieldsAsNumbers: true}));
+    } else {
+      f.setf(file.getf('name').replace(/\.proto$/, '.json'), 'name');
+      f.setf(JSON.stringify([file.asJSON({fieldsAsNumbers: true})], null, 0), 'content');
+      response.getf('file').push(f);
+    }
   });
 
-  console.error("GOING TO WRITE THE RESULT");
-  var result = response.encode().toBuffer();
-  console.error("Written the result");
+  if(singleFiles.length) {
+    var file = new File();
+    file.setf(singleFile, 'name');
+    file.setf(JSON.stringify(singleFiles, null, 0), 'content');
+    response.setf([file], 'file');
+  }
 
-  process.stdout.write(result)
+  if(!process.stdout.write(response.encode().toBuffer())) {
+    process.stdout.on('drain', function() { printTiming('compiled', start); process.exit(0); });
+  } else {
+    printTiming('Compiled', start);
+  }
 });
 
 
+function printTiming(msg, start, finish) {
+  finish = finish || Date.now();
+  process.stderr.write(msg + ' ' + (finish - start)/1000 + "s\n");
+}
+
 process.stdin.resume();
-
-

@@ -1,40 +1,39 @@
 {
   "name": "protob",
-  "version": "0.4.4",
+  "version": "1.0.0-browser12",
   "description": "Protocol Buffers",
   "main": "index.js",
   "repository": {
     "type": "git",
-    "url": "git@git.squareup.com:dneighman/protob.git"
+    "url": "git@github.com:square/protob.git"
   },
   "scripts": {
     "test": "mocha --recursive",
-    "docs": "jsdoc -c jsdoc.json"
+    "docs": "jsdoc -c jsdoc.json",
+    "browser-pack": "browserify -r through -r duplexer -r ./index.js:protob > browser-protob.js"
   },
   "bin": {
     "protob": "./bin/protob",
     "protoc-gen-json": "./bin/protoc-gen-json"
   },
+  "browser": {
+    "bluebird": "es6-promise"
+  },
   "author": "Daniel Neighman",
   "license": "BSD-2-Clause",
   "dependencies": {
-    "underscore": "~1.5.2",
-    "bytebuffer": "2.0.1",
+    "bluebird": "~2.2.2",
+    "bytebuffer": "2.3.2",
     "glob": "~3.2.7",
-    "q": "~0.9.7",
     "optimist": "~0.6.0",
+    "underscore": "~1.5.2",
     "rimraf": "~2.2.6"
   },
   "devDependencies": {
+    "browserify": "^3.43.0",
     "mocha": "~1.14.0",
-    "grunt-cli": "~0.1.11",
-    "grunt": "~0.4.2",
-    "grunt-simple-mocha": "~0.4.0",
-    "grunt-contrib-watch": "~0.5.3",
-    "jsdocs-client": "*",
-    "jsdoc": ""
-  },
-  "publishConfig": {
-    "registry": "http://npm.corp.squareup.com:8000"
+    "es6-promise": "~1.0.0",
+    "through": "*",
+    "duplexer": "*"
   }
 }

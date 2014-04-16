@@ -1,3 +1,4 @@
+require('./test_helper');
 var Assert = require('assert');
 var Path = require('path');
 var Protob = require('../index').Protob;
@@ -156,10 +157,6 @@ describe("Protob", function(){
 
   it("has a registry", function(){
     Assert.equal(typeof Protob.registry, "object");
-  });
-
-  it("has an object registry for protobuf classes", function(){
-    Assert.equal(typeof Protob.v, "object");
   });
 
   it("caches the ByteBuffer implementation", function(){
