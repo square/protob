@@ -5,6 +5,7 @@ var Path = require('path');
 var Glob = require('glob');
 var exec = require('child_process').exec;
 var fs   = require('fs');
+var singleFile;
 
 var optimist = require('optimist')
   .usage("Usage: $0 [OPTIONS] [protofile, [protofile], [...]]")
@@ -24,28 +25,38 @@ var optimist = require('optimist')
     default: true
   })
   .boolean("h")
-  .boolean("n");
+  .boolean("n")
+  .options("f", {
+    alias: "outfile",
+    describe: "Output file for compiled protos"
+  });
 
 var argv = optimist.argv;
 
 if( argv.help ) { optimist.showHelp(); process.exit(0); }
 
-if( argv._.length == 0 && fs.existsSync("./protos.json")){ Protofile.protoPaths.push("./protos.json"); }
+if( argv._.length == 0 && fs.existsSync("./protos.json")) Protofile.protoPaths.push("./protos.json");
 for(var i=0; i < argv._.length; i++) { Protofile.protoPaths.push(Path.resolve(argv._[i])); }
 
 if( argv.node ) {
-  var protos = Glob.sync("./node_modules/**/protos.json").filter(function(pth) { return !(/\/test\//.test(pth)) });
+  var protos = Glob.sync("./node_modules/**/protos.json").filter(function(pth) { return !(/\/test\//.test(pth)); });
   for( var i=0; i<protos.length; i++){ Protofile.protoPaths.push(Path.resolve(protos[i])); }
 }
 
-if( Protofile.protoPaths.length == 0 ){
+if( argv.outfile ) {
+  singleFile = argv.outfile;
+  process.env.SINGLE_FILE = singleFile;
+}
+
+
+if (Protofile.protoPaths.length == 0) {
   console.error("No protofiles found");
   process.exit(0);
 } else {
   console.error("Fetching protofiles from:", Protofile.protoPaths);
 }
 
-if( argv.o ) { Protofile.outputDir = argv.o }
+if( argv.o ) Protofile.outputDir = argv.o;
 
 var protofile = new Protofile();
 
@@ -65,7 +76,7 @@ protofile.resolve().then( function(){
       cmd.push("-I=" + Path.resolve(path));
     });
 
-    protofile.files().forEach(function(file) { cmd.push(Path.resolve(file)) });
+    protofile.files().forEach(function(file) { cmd.push(Path.resolve(file)); });
   } catch(e) {
     console.error(e);
   }

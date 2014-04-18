@@ -3,6 +3,7 @@
 var Compiler = require('../lib/compiler').Compiler;
 var registry = Compiler.compile();
 var Util = require('util');
+var singleFile = process.env.SINGLE_FILE;
 
 var ByteBuffer = require('bytebuffer');
 
@@ -15,30 +16,38 @@ process.stdin.on("data", function(data) {
 process.stdin.on("end", function(){
   buffer.flip();
 
-  var Request  = registry["google.protobuf.compiler.CodeGeneratorRequest"];
-  var Response = registry["google.protobuf.compiler.CodeGeneratorResponse"];
-  var File     = registry["google.protobuf.compiler.CodeGeneratorResponse"];
+  var Request  = registry.lookup("google.protobuf.compiler.CodeGeneratorRequest");
+  var Response = registry.lookup("google.protobuf.compiler.CodeGeneratorResponse");
+  var File     = registry.lookup("google.protobuf.compiler.CodeGeneratorResponse");
 
-  var request  = Request.decode(buffer)
+  var request  = Request.decode(buffer);
   var response = new Response();
+  var singleFiles = [], fileSet;
   response.file = [];
 
+
   request.proto_file.forEach(function(file){
-    console.error("FILE", file);
     var f = new File();
-    f.name    = file.name.replace(/\.proto$/, '.json');
-    f.content = JSON.stringify([file], null, 2);
-    response.file.push(f);
+    if(singleFile) {
+      singleFiles.push(file);
+    } else {
+      f.name    = file.name.replace(/\.proto$/, '.json');
+      f.content = JSON.stringify([file], null, 2);
+      response.file.push(f);
+    }
   });
 
-  console.error("GOING TO WRITE THE RESULT");
-  var result = response.encode().toBuffer();
-  console.error("Written the result");
+  if(singleFiles.length) {
+    var file = new File();
+    file.name = singleFile;
+    file.content = JSON.stringify(singleFiles);
+    response.file = [file];
+  }
 
-  process.stdout.write(result)
+
+  var result = response.encode().toBuffer();
+  process.stdout.write(result);
 });
 
 
 process.stdin.resume();
-
-

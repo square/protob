@@ -1,3 +1,4 @@
+require('../test_helper');
 var Path = require('path');
 require(Path.resolve(Path.join(__dirname, "..", "test_helper")));
 var index = require(Path.join(__dirname, "../../index"));
@@ -8,18 +9,18 @@ var Long = index.Protob.Long;
 
 describe("protofile", function(){
   it("compiles the protos to the registry", function(){
-    var stuff = new r['test.fox.simpsons.Stuff']();
+    var stuff = new (r.lookup('test.fox.simpsons.Stuff'))();
     Assert(stuff instanceof index.Message);
   });
 
   it("uses the provided arguments to set values", function(){
-    var homer = new r['test.fox.simpsons.Character']({name: 'Homer'});
+    var homer = new (r.lookup('test.fox.simpsons.Character'))({name: 'Homer'});
     Assert.equal(homer.name, 'Homer', 'Expected setter on the constructor');
   });
 
   describe("protoValues", function(){
     var Stuff;
-    beforeEach(function(){ Stuff = r['test.fox.simpsons.Stuff']; });
+    beforeEach(function(){ Stuff = r.lookup('test.fox.simpsons.Stuff'); });
 
     it("ignores non field values", function(){
       var stuff = new Stuff({ not_a_value: "foo" });
@@ -98,14 +99,14 @@ describe("protofile", function(){
     });
 
     it("converts bytes", function(){
-      var char = new r['test.fox.simpsons.Character']({name: "Homer"});
+      var char = new (r.lookup('test.fox.simpsons.Character'))({name: "Homer"});
       var stuff = new Stuff({ bytes_value: char.encode() });
       Assert.deepEqual(char.constructor.decode(stuff.protoValues().bytes_value), {name: "Homer", is_evil: true, is_lovable: false, joke_count: new Long(0, 0, false)});
     });
 
     it("handles messages", function(){
       var stuff = new Stuff({message_value: { name: "Marge" }});
-      Assert(stuff.protoValues().message_value instanceof r['test.fox.simpsons.Character']);
+      Assert(stuff.protoValues().message_value instanceof r.lookup('test.fox.simpsons.Character'));
       Assert.deepEqual(stuff.protoValues().message_value, { name: "Marge", is_evil: true, is_lovable: false, joke_count: new Long(0, 0, false)});
     });
 
@@ -113,7 +114,7 @@ describe("protofile", function(){
       describe("enums", function(){
         var char;
         beforeEach( function(){
-          char = new r['test.fox.simpsons.Character']({ gender: 'MALE', name: "Sideshow Bob" });
+          char = new (r.lookup('test.fox.simpsons.Character'))({ gender: 'MALE', name: "Sideshow Bob" });
         });
 
         it("gives numbers by default", function(){
@@ -128,7 +129,7 @@ describe("protofile", function(){
           Assert.equal(char.protoValues({enums: 'name'}).gender, 'MALE');
         });
         it("gives full values", function(){
-          var gender = r['test.common.Gender'].fetch('MALE');
+          var gender = r.lookup('test.common.Gender').fetch('MALE');
           Assert.deepEqual(char.protoValues({enums: 'full'}).gender, gender);
         });
 
@@ -152,7 +153,7 @@ describe("protofile", function(){
           });
 
           it("gives full values", function(){
-            var gender = r['test.common.Gender'].fetch('MALE');
+            var gender = r.lookup('test.common.Gender').fetch('MALE');
             Assert.deepEqual(enc.decode(data, {enums: 'full'}).gender, gender);
           });
         });
@@ -187,7 +188,7 @@ describe("protofile", function(){
     var stuff, Stuff, fields, decoded, encoded;
 
     beforeEach(function(){
-      Stuff = r['test.fox.simpsons.Stuff'];
+      Stuff = r.lookup('test.fox.simpsons.Stuff');
       stuff = new Stuff({
         string_value: "FOO",
         double_value: 123.123,
@@ -203,7 +204,7 @@ describe("protofile", function(){
         sint32_value: -123,
         sint64_value: -123,
         bool_value: false,
-        bytes: new r['test.fox.simpsons.Character']({name: "Bart"}).encode(),
+        bytes: new (r.lookup('test.fox.simpsons.Character'))({name: "Bart"}).encode(),
         message_value: { name: 'Lisa' }
       });
       encoded = stuff.encode();
@@ -231,7 +232,7 @@ describe("protofile", function(){
 
   describe("default values", function(){
     it("sets default values", function(){
-      var char = new r['test.fox.simpsons.Character']({name: "Blob"});
+      var char = new (r.lookup('test.fox.simpsons.Character'))({name: "Blob"});
       Assert.equal(char.is_evil, true);
       Assert.equal(char.is_lovable, false);
       Assert.deepEqual(char.joke_count, new Long(0, 0, false));
@@ -241,7 +242,7 @@ describe("protofile", function(){
   describe("extensions", function(){
     var Extendable, ext;
     beforeEach(function(){
-      Extendable = r['test.common.Extendable'];
+      Extendable = r.lookup('test.common.Extendable');
 
       ext = new Extendable({
         name: "Plow King",

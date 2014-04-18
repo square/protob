@@ -1,3 +1,4 @@
+require('./test_helper');
 var Assert = require('assert');
 var Enum = require('../lib/enum').Enum;
 

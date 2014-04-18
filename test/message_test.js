@@ -1,3 +1,4 @@
+require('./test_helper');
 var Assert = require('assert');
 var Path = require('path');
 var Protob = require('../index').Protob;

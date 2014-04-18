@@ -1,3 +1,4 @@
+require('./test_helper');
 var Assert = require('assert');
 var Util   = require('../lib/util').Util;
 
