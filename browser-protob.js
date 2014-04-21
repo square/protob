@@ -1159,18 +1159,6 @@ module.exports = [
             "type": 9
           },
           {
-            "name": "public_dependency",
-            "number": 10,
-            "label": 3,
-            "type": 5
-          },
-          {
-            "name": "weak_dependency",
-            "number": 11,
-            "label": 3,
-            "type": 5
-          },
-          {
             "name": "message_type",
             "number": 4,
             "label": 3,
@@ -1220,6 +1208,12 @@ module.exports = [
           {
             "name": "name",
             "number": 1,
+            "label": 1,
+            "type": 9
+          },
+          {
+            "name": "doc",
+            "number": 8,
             "label": 1,
             "type": 9
           },
@@ -1292,6 +1286,12 @@ module.exports = [
           {
             "name": "name",
             "number": 1,
+            "label": 1,
+            "type": 9
+          },
+          {
+            "name": "doc",
+            "number": 9,
             "label": 1,
             "type": 9
           },
@@ -1448,6 +1448,12 @@ module.exports = [
             "type": 9
           },
           {
+            "name": "doc",
+            "number": 4,
+            "label": 1,
+            "type": 9
+          },
+          {
             "name": "value",
             "number": 2,
             "label": 3,
@@ -1469,6 +1475,12 @@ module.exports = [
           {
             "name": "name",
             "number": 1,
+            "label": 1,
+            "type": 9
+          },
+          {
+            "name": "doc",
+            "number": 4,
             "label": 1,
             "type": 9
           },
@@ -1504,6 +1516,12 @@ module.exports = [
             "type_name": ".google.protobuf.MethodDescriptorProto"
           },
           {
+            "name": "doc",
+            "number": 4,
+            "label": 1,
+            "type": 9
+          },
+          {
             "name": "options",
             "number": 3,
             "label": 1,
@@ -1518,6 +1536,12 @@ module.exports = [
           {
             "name": "name",
             "number": 1,
+            "label": 1,
+            "type": 9
+          },
+          {
+            "name": "doc",
+            "number": 5,
             "label": 1,
             "type": 9
           },
@@ -1578,12 +1602,6 @@ module.exports = [
             "type": 14,
             "type_name": ".google.protobuf.FileOptions.OptimizeMode",
             "default_value": "SPEED"
-          },
-          {
-            "name": "go_package",
-            "number": 11,
-            "label": 1,
-            "type": 9
           },
           {
             "name": "cc_generic_services",
@@ -1690,13 +1708,6 @@ module.exports = [
             "type": 8
           },
           {
-            "name": "lazy",
-            "number": 5,
-            "label": 1,
-            "type": 8,
-            "default_value": false
-          },
-          {
             "name": "deprecated",
             "number": 3,
             "label": 1,
@@ -1708,13 +1719,6 @@ module.exports = [
             "number": 9,
             "label": 1,
             "type": 9
-          },
-          {
-            "name": "weak",
-            "number": 10,
-            "label": 1,
-            "type": 8,
-            "default_value": false
           },
           {
             "name": "uninterpreted_option",
@@ -1753,13 +1757,6 @@ module.exports = [
       {
         "name": "EnumOptions",
         "field": [
-          {
-            "name": "allow_alias",
-            "number": 2,
-            "label": 1,
-            "type": 8,
-            "default_value": true
-          },
           {
             "name": "uninterpreted_option",
             "number": 999,
@@ -1917,6 +1914,10 @@ module.exports = [
                 "label": 3,
                 "type": 5,
                 "options": {
+                  "ctype": "STRING",
+                  "deprecated": false,
+                  "lazy": false,
+                  "weak": false,
                   "packed": true
                 }
               },
@@ -1926,20 +1927,12 @@ module.exports = [
                 "label": 3,
                 "type": 5,
                 "options": {
+                  "ctype": "STRING",
+                  "deprecated": false,
+                  "lazy": false,
+                  "weak": false,
                   "packed": true
                 }
-              },
-              {
-                "name": "leading_comments",
-                "number": 3,
-                "label": 1,
-                "type": 9
-              },
-              {
-                "name": "trailing_comments",
-                "number": 4,
-                "label": 1,
-                "type": 9
               }
             ]
           }
@@ -1947,9 +1940,14 @@ module.exports = [
       }
     ],
     "options": {
+      "optimize_for": 1,
+      "java_multiple_files": false,
+      "cc_generic_services": false,
+      "java_generic_services": false,
+      "py_generic_services": false,
+      "java_generate_equals_and_hash": false,
       "java_package": "com.google.protobuf",
-      "java_outer_classname": "DescriptorProtos",
-      "optimize_for": 1
+      "java_outer_classname": "DescriptorProtos"
     }
   },
   {
@@ -2789,7 +2787,7 @@ function Registry() {
 
 function Scope(name, parentScope) {
   if(parentScope) {
-    this.name = [parentScope.name(), name].join('.');
+    this.name = [parentScope.name, name].join('.');
   } else {
     this.name = name;
   }
@@ -11131,8 +11129,6 @@ module.exports=require(19)
 
 })(this);
 
-},{}],"duplexer":[function(require,module,exports){
-module.exports=require('zdmJ4e');
 },{}],"zdmJ4e":[function(require,module,exports){
 var Stream = require("stream")
 var writeMethods = ["write", "end", "destroy"]
@@ -11222,7 +11218,9 @@ function duplex(writer, reader) {
     }
 }
 
-},{"stream":28}],41:[function(require,module,exports){
+},{"stream":28}],"duplexer":[function(require,module,exports){
+module.exports=require('zdmJ4e');
+},{}],41:[function(require,module,exports){
 (function (process){
 // Approach:
 //
