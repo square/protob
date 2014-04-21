@@ -10,7 +10,8 @@
             "name": "name",
             "number": 1,
             "label": 1,
-            "type": 9
+            "type": 9,
+            "doc": ""
           }
         ],
         "extension_range": [
@@ -18,7 +19,8 @@
             "start": 1000,
             "end": 1100
           }
-        ]
+        ],
+        "doc": ""
       }
     ],
     "enum_type": [
@@ -27,13 +29,16 @@
         "value": [
           {
             "name": "FEMALE",
-            "number": 1
+            "number": 1,
+            "doc": ""
           },
           {
             "name": "MALE",
-            "number": 2
+            "number": 2,
+            "doc": ""
           }
-        ]
+        ],
+        "doc": ""
       }
     ]
   }

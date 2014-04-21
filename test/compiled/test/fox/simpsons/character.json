@@ -13,34 +13,39 @@
             "name": "name",
             "number": 1,
             "label": 2,
-            "type": 9
+            "type": 9,
+            "doc": ""
           },
           {
             "name": "gender",
             "number": 2,
             "label": 1,
             "type": 14,
-            "type_name": ".test.common.Gender"
+            "type_name": ".test.common.Gender",
+            "doc": ""
           },
           {
             "name": "age",
             "number": 3,
             "label": 1,
-            "type": 13
+            "type": 13,
+            "doc": ""
           },
           {
             "name": "is_evil",
             "number": 4,
             "label": 1,
             "type": 8,
-            "default_value": true
+            "default_value": true,
+            "doc": ""
           },
           {
             "name": "is_lovable",
             "number": 5,
             "label": 1,
             "type": 8,
-            "default_value": false
+            "default_value": false,
+            "doc": ""
           },
           {
             "name": "joke_count",
@@ -51,9 +56,11 @@
               "low": 0,
               "high": 0,
               "unsigned": false
-            }
+            },
+            "doc": ""
           }
-        ]
+        ],
+        "doc": ""
       },
       {
         "name": "Stuff",
@@ -62,98 +69,114 @@
             "name": "string_value",
             "number": 1,
             "label": 1,
-            "type": 9
+            "type": 9,
+            "doc": ""
           },
           {
             "name": "double_value",
             "number": 2,
             "label": 1,
-            "type": 1
+            "type": 1,
+            "doc": ""
           },
           {
             "name": "float_value",
             "number": 3,
             "label": 1,
-            "type": 2
+            "type": 2,
+            "doc": ""
           },
           {
             "name": "int32_value",
             "number": 4,
             "label": 1,
-            "type": 5
+            "type": 5,
+            "doc": ""
           },
           {
             "name": "int64_value",
             "number": 5,
             "label": 1,
-            "type": 3
+            "type": 3,
+            "doc": ""
           },
           {
             "name": "uint32_value",
             "number": 6,
             "label": 1,
-            "type": 13
+            "type": 13,
+            "doc": ""
           },
           {
             "name": "uint64_value",
             "number": 7,
             "label": 1,
-            "type": 4
+            "type": 4,
+            "doc": ""
           },
           {
             "name": "fixed32_value",
             "number": 8,
             "label": 1,
-            "type": 7
+            "type": 7,
+            "doc": ""
           },
           {
             "name": "fixed64_value",
             "number": 9,
             "label": 1,
-            "type": 6
+            "type": 6,
+            "doc": ""
           },
           {
             "name": "sfixed32_value",
             "number": 10,
             "label": 1,
-            "type": 15
+            "type": 15,
+            "doc": ""
           },
           {
             "name": "sfixed64_value",
             "number": 11,
             "label": 1,
-            "type": 16
+            "type": 16,
+            "doc": ""
           },
           {
             "name": "sint32_value",
             "number": 12,
             "label": 1,
-            "type": 17
+            "type": 17,
+            "doc": ""
           },
           {
             "name": "sint64_value",
             "number": 13,
             "label": 1,
-            "type": 18
+            "type": 18,
+            "doc": ""
           },
           {
             "name": "bool_value",
             "number": 14,
             "label": 1,
-            "type": 8
+            "type": 8,
+            "doc": ""
           },
           {
             "name": "bytes_value",
             "number": 15,
             "label": 1,
-            "type": 12
+            "type": 12,
+            "doc": ""
           },
           {
             "name": "message_value",
             "number": 16,
             "label": 1,
             "type": 11,
-            "type_name": ".test.fox.simpsons.Character"
+            "type_name": ".test.fox.simpsons.Character",
+            "doc": ""
           }
         ],
         "enum_type": [
@@ -162,13 +185,16 @@
             "value": [
               {
                 "name": "NICE",
-                "number": 1
+                "number": 1,
+                "doc": ""
               },
               {
                 "name": "NASTY",
-                "number": 2
+                "number": 2,
+                "doc": ""
               }
-            ]
+            ],
+            "doc": ""
           }
         ],
         "extension": [
@@ -177,14 +203,16 @@
             "extendee": ".test.common.Extendable",
             "number": 1000,
             "label": 1,
-            "type": 8
+            "type": 8,
+            "doc": ""
           },
           {
             "name": "msg",
             "extendee": ".test.common.Extendable",
             "number": 1001,
             "label": 1,
-            "type": 9
+            "type": 9,
+            "doc": ""
           },
           {
             "name": "greeting_type",
@@ -192,9 +220,11 @@
             "number": 1002,
             "label": 1,
             "type": 14,
-            "type_name": ".test.fox.simpsons.Stuff.GreetingType"
+            "type_name": ".test.fox.simpsons.Stuff.GreetingType",
+            "doc": ""
           }
-        ]
+        ],
+        "doc": ""
       }
     ]
   }
