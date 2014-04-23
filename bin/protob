@@ -24,6 +24,11 @@ var optimist = require('optimist')
     describe: "Collect proto.json files from locally installed dependencies",
     default: true
   })
+  .options("c", {
+    alias: "cache",
+    describe: "The cache for raw proto files",
+    default: "./.proto_cache"
+  })
   .boolean("h")
   .boolean("n")
   .options("f", {
@@ -41,6 +46,10 @@ for(var i=0; i < argv._.length; i++) { Protofile.protoPaths.push(Path.resolve(ar
 if( argv.node ) {
   var protos = Glob.sync("./node_modules/**/protos.json").filter(function(pth) { return !(/\/test\//.test(pth)); });
   for( var i=0; i<protos.length; i++){ Protofile.protoPaths.push(Path.resolve(protos[i])); }
+}
+
+if (argv.cache ) {
+  Protofile.protoCache = argv.cache
 }
 
 if( argv.outfile ) {
