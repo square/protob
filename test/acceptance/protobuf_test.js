@@ -156,7 +156,37 @@ describe("protofile", function(){
             Assert.deepEqual(enc.decode(data, {enums: 'full'}).gender, gender);
           });
         });
+      });
 
+      describe("longs", function() {
+        var stuff;
+        beforeEach( function(){
+          stuff = new r['test.fox.simpsons.Stuff']({ int64_value: 4815162342});
+        });
+
+        it('gives ints', function() {
+          Assert.equal(stuff.protoValues({ longs: 'ints'}).int64_value, 4815162342);
+        });
+
+        it('gives strings', function() {
+          Assert.equal(stuff.protoValues({ longs: 'strings'}).int64_value, '4815162342');
+        });
+
+        describe("decoding", function(){
+          var data, enc;
+          beforeEach(function(){
+            data = stuff.encode();
+            enc = stuff.constructor;
+          });
+
+          it("gives ints", function(){
+            Assert.equal(enc.decode(data, {longs: 'ints'}).int64_value, 4815162342);
+          });
+
+          it('gives strings', function() {
+            Assert.equal(enc.decode(data, {longs: 'strings'}).int64_value, '4815162342');
+          });
+        });
       });
     });
 
