@@ -55,6 +55,15 @@ describe("ENUM", function(){
       Assert.equal(1, val.number);
     });
 
+    it('lets me fetch with a lower case enum' ,function() {
+      var val = testValue.byName('type_double');
+      Assert.equal(1,val.number);
+    });
+
+    it('returns undefined when there is no enum', function() {
+      Assert.equal(testValue.byName(), undefined);
+    });
+
     it("lets me fetch by id or name", function(){
       var valByName = testValue.fetch("TYPE_DOUBLE");
       var valByNumber = testValue.fetch(1);
