@@ -34,7 +34,13 @@ module.exports.Compiler = compiler;
  * A new instance of a compiler. Compilers will update the Protob registry and define Javascript objects for each message, enum, service found
  * @constructor
  */
-function Compiler(){}
+function Compiler(){
+  this.reset = function() {
+    this.descriptorsByFile = {};
+  }.bind(this);
+
+  this.reset();
+}
 
 /**
  * Compiles all the .json files found in any of the paths (found recursively) provided
@@ -55,7 +61,8 @@ Compiler.prototype.compile = function(){
   var self = this,
       paths =  Array.prototype.slice.call(arguments) || [],
       fs = require('fs'),
-      glob = require('glob');
+      glob = require('glob'),
+      descriptors = [];
 
   paths.forEach(function(pathh) {
     var pathz = [pathh];
@@ -64,59 +71,31 @@ Compiler.prototype.compile = function(){
     }
 
     pathz.forEach(function(path) {
-      descriptors = JSON.parse(fs.readFileSync(path));
-      if ( descriptors.length === 0 ) { return; }
-      self.compileDescriptorSet(descriptors);
+      fileDescriptors = JSON.parse(fs.readFileSync(path));
+      if ( fileDescriptors.length === 0 ) { return; }
+      descriptors = descriptors.concat(fileDescriptors);
     });
+
   });
 
-  registry()._applyExtensions();
-  registry()._finalize();
-  this.updateObjectAccess();
+  self.compileDescriptors(descriptors);
+
   return registry();
 }
 
 Compiler.prototype.compileDescriptors = function(descriptors) {
-  this.compileDescriptorSet(descriptors);
-
-  registry()._applyExtensions();
-  registry()._finalize();
-  this.updateObjectAccess();
-  return registry();
-};
-
-Compiler.prototype.compileDescriptorSet = function(descriptors) {
   var self = this;
+
+  descriptors.forEach(function(desc) {
+    self.descriptorsByFile[desc.name] = desc;
+  });
+
   descriptors.forEach(function(desc) {
     // These descriptors are file descriptors
     self.compileDescriptor(desc);
   });
+  return registry();
 };
-
-/**
- * Updates the object access cache for Protob with all the messages found in the registry.
- *
- *
- * @example
- *    compiler.updateObjectAccess();
- *
- *    Protob.registry.lookup('foo.bar.Baz') === Protob.v.foo.bar.Baz;
- *
- * @private
- */
-Compiler.prototype.updateObjectAccess = function(){
-  var objAccess = require('./protob').Protob.v;
-  registry().keys().forEach(function(key) {
-    key.split(".").reduce(function(prev, current, idx, arry) {
-      if( (idx == arry.length - 1) ) {
-        prev[current] = registry().lookup(key);
-      } else {
-        prev[current] = prev[current] || {};
-      }
-      return prev[current];
-    }, objAccess);
-  });
-}
 
 /**
  * Compiles a generic descriptor, this could be of type message, enum, or service
@@ -124,8 +103,22 @@ Compiler.prototype.updateObjectAccess = function(){
  * @private
  */
 Compiler.prototype.compileDescriptor = function(descriptor) {
+  if(descriptor.__protobCompiled__ === true) return;
+
+  this.descriptorsByFile[descriptor.name] = this.descriptorsByFile[descriptor.name] || descriptor;
+
   var pkg = descriptor['package'],
       self = this;
+
+  if(descriptor.dependency) {
+    descriptor.dependency.forEach(function(path) {
+      var depDesc = self.descriptorsByFile[path];
+
+      if(!depDesc) throw "Dependency not found: " + path;
+
+      self.compileDescriptor(depDesc);
+    });
+  }
 
   if ( Array.isArray(descriptor.enum_type) ) {
     descriptor.enum_type.forEach( function(enumDesc) {
@@ -139,6 +132,12 @@ Compiler.prototype.compileDescriptor = function(descriptor) {
     });
   }
 
+  if ( Array.isArray(descriptor.service) ) {
+    descriptor.service.forEach( function(serviceDesc) {
+      self.compileService(serviceDesc, pkg, descriptor);
+    });
+  }
+
   if( Array.isArray(descriptor.extension) ) {
     descriptor.extension.forEach(function(ext){
       ext.pkg = pkg;
@@ -146,13 +145,10 @@ Compiler.prototype.compileDescriptor = function(descriptor) {
     });
   }
 
-  if ( Array.isArray(descriptor.service) ) {
-    descriptor.service.forEach( function(serviceDesc) {
-      self.compileService(serviceDesc, pkg, descriptor);
-    });
-  }
+  registry()._applyExtensions();
+  registry()._finalize(true);
 
-  // TODO: handle options
+  descriptor.__protobCompiled__ = true;
 }
 
 /**
@@ -177,6 +173,7 @@ Compiler.prototype.compileEnum = function(enumDesc, pkg, descriptor) {
     obj.fileDescriptor = descriptor;
     registry()._addObject(fullName, obj);
   }
+
   registry()._fetch(fullName).updateDescriptor(enumDesc);
 };
 
@@ -209,7 +206,6 @@ Compiler.prototype.compileMessage = function(messageDesc, pkg, descriptor) {
   }
 
   registry()._fetch(fullName).fileDescriptor = descriptor;
-  registry()._fetch(fullName).updateDescriptor(messageDesc);
 
   if( Array.isArray(messageDesc.extension) ){
     messageDesc.extension.forEach(function(ext){
@@ -223,6 +219,8 @@ Compiler.prototype.compileMessage = function(messageDesc, pkg, descriptor) {
       self.compileMessage(msgDesc, fullName, descriptor);
     });
   }
+
+  registry()._fetch(fullName).updateDescriptor(messageDesc);
 }
 
 /**
@@ -259,7 +257,7 @@ Compiler.prototype.compileService = function(serviceDesc, pkg, descriptor) {
   registry()._fetch(fullName).updateDescriptor(serviceDesc);
 };
 
-},{"./enum":7,"./message":9,"./protob":10,"./registry":11,"./service":12,"./util":14,"fs":16,"glob":41,"path":26,"util":36}],4:[function(require,module,exports){
+},{"./enum":7,"./message":9,"./registry":11,"./service":12,"./util":14,"fs":16,"glob":41,"path":26,"util":36}],4:[function(require,module,exports){
 /**
  * A collection of encoding functions that act on a value and encode it in wire format
  * @module protob
@@ -367,7 +365,14 @@ var coorcers = {
       } else {
         r =  e.fetch(val);
       }
-      if ( !r ) { throw( new Error(fn + ": Unknown ENUM value " + val + " for " + e.fullName)); }
+      if ( !r ) { 
+        if( isNaN(Number(val)) ){
+          console.log(val);
+          throw( new Error(fn + ": Unknown ENUM value " + val + " for " + e.fullName));
+        } else {
+          r = new EnumValue({ number: val, name: undefined });
+        }
+      }
 
       switch(opts && opts.enums){
         case 'name':
@@ -1003,7 +1008,7 @@ function EnumValue(name, number, options) {
  * @protected
  */
 Enum.prototype.updateDescriptor = function(desc) {
-  if( !Object.isFrozen(desc) ) { Object.freeze(desc); }
+  // if( !Object.isFrozen(desc) ) { Object.freeze(desc); }
   /** @member {object} - The protobuf descriptor */
   this.descriptor = desc;
   /** @member {object} - The protocol buffer name for this enum */
@@ -2131,6 +2136,7 @@ Message.updateDescriptor = function(desc) {
   this.finalize = Message.finalize;
   this.decode   = Message.decode;
   this.encode   = Message.encode;
+  registry._addFinalize(this.fullName);
 };
 
 /**
@@ -2154,19 +2160,17 @@ Message.reset = function() {
 function expandDescriptors(descriptor) {
   var TYPE  = registry.lookup('google.protobuf.FieldDescriptorProto.Type');
   var LABEL = registry.lookup('google.protobuf.FieldDescriptorProto.Label');
-  if ( Array.isArray(descriptor.field) ) {
-    descriptor.field.forEach(function(field) {
-      field.repeated = LABEL.fetch(field.label) == LABEL.fetch("LABEL_REPEATED");
-      field.required = LABEL.fetch(field.label) == LABEL.fetch("LABEL_REQUIRED");
-      var type = TYPE.fetch(field.type || field.type_name);
-      field.fieldType = type.name;
-      if ( type.name == 'TYPE_MESSAGE' || type.name == 'TYPE_ENUM') {
-        var name = field.type_name.replace(/^\./, '');
-        field.descriptor = registry.lookup(name).descriptor;
-        field.concrete   = registry.lookup(name);
-      }
-    });
-  }
+  (descriptor.field || []).forEach(function(field) {
+    field.repeated = LABEL.fetch(field.label) == LABEL.fetch("LABEL_REPEATED");
+    field.required = LABEL.fetch(field.label) == LABEL.fetch("LABEL_REQUIRED");
+    var type = TYPE.fetch(field.type || field.type_name);
+    field.fieldType = type.name;
+    if ( type.name == 'TYPE_MESSAGE' || type.name == 'TYPE_ENUM') {
+      var name = field.type_name.replace(/^\./, '');
+      field.descriptor = registry.lookup(name).descriptor;
+      field.concrete   = registry.lookup(name);
+    }
+  });
 };
 
 /**
@@ -2174,8 +2178,6 @@ function expandDescriptors(descriptor) {
  * @private
  */
 Message.finalize = function() {
-  if ( _.isEqual(this._finalDesc, this.descriptor ) ) { return; }
-
   var desc = this.descriptor,
       self = this;
 
@@ -2184,13 +2186,15 @@ Message.finalize = function() {
   if ( desc.field && Array.isArray(desc.field) ) {
     desc.field.forEach(function(field) {
       self.fieldsById[field.number] = field;
-      self.fieldsByName[field.name] = field;
+
+      // This is not that useful because we can have fields with the same name from different packages
+      self.fieldsByName[field.name] = field; 
       if(field.extendee){
         self.fieldsByPkg[field.pkg] = self.fieldsByPkg[field.pkg] || [];
-        self.fieldsByPkg[field.pkg].push(field);
+        if(self.fieldsByPkg[field.pkg].indexOf(field) < 0) self.fieldsByPkg[field.pkg].push(field);
       } else {
         self.fieldsByPkg[undefined] = self.fieldsByPkg[undefined] || [];
-        self.fieldsByPkg[undefined].push(field);
+        if(self.fieldsByPkg[undefined].indexOf(field) < 0) self.fieldsByPkg[undefined].push(field);
       }
     });
 
@@ -2211,6 +2215,7 @@ Message.finalize = function() {
   this.fieldsByPkg   = this.fieldsByPkg   || {};
 
   var TYPE  = registry.lookup('google.protobuf.FieldDescriptorProto.Type');
+
   this.type = TYPE.fetch("TYPE_MESSAGE");
 
   this.descriptor.concrete = this;
@@ -2218,7 +2223,6 @@ Message.finalize = function() {
   expandDescriptors(this.descriptor);
 
   this._finalDesc = this.descriptor;
-  if( !Object.isFrozen(this.descriptor) ) { Object.freeze(this.descriptor); }
 };
 
 /**
@@ -2231,9 +2235,10 @@ Message.finalize = function() {
  * @return {*} - An object compatible with the protocol buffer definition for this field
  */
 function encodeField(field, value, opts) {
-  var self = this;
-  var val;
-  var TYPE  = registry.lookup('google.protobuf.FieldDescriptorProto.Type');
+  var self = this,
+      TYPE  = registry.lookup('google.protobuf.FieldDescriptorProto.Type'),
+      val;
+
   if ( field.fieldType == "TYPE_ENUM" ){
     var typeName = field.type_name.replace(/^\./, '');
     val = coorcers[field.fieldType](field.name, registry.lookup(typeName)).call(self, value, opts);
@@ -2301,8 +2306,7 @@ Message.prototype.setDefaults = function(){
   for(var i=0; i<fields.length; i++){
     if(this.hasOwnProperty(fields[i].name) && this[fields[i].name] !== undefined) continue;
 
-    if(fields[i].default_value !== undefined &&
-       fields[i].default_value !== null){
+    if(fields[i].hasOwnProperty(fields[i].name)) {
       this[fields[i].name] = fields[i].default_value;
     }
   }
@@ -2750,7 +2754,6 @@ Protob.ByteBuffer = ByteBuffer;
 
 exports.Protob = Protob;
 exports.ByteBuffer = ByteBuffer;
-Protob.v = v;
 
 exports.registry = require('./registry');
 Protob.registry = exports.registry;
@@ -2774,7 +2777,6 @@ if(cache.registry) {
   return;
 }
 
-// If we got to here... we're the fist kids on the scene
 var registry = {},
     extensions = {},
     awaitingFinalizers = [];
@@ -2782,7 +2784,13 @@ var registry = {},
 REGISTRY = cache.registry = new Registry();
 module.exports = REGISTRY;
 
-function Registry() {
+function Registry() { }
+
+Registry.prototype.reset = function() {
+  awaitingFinalizers = [];
+  registry = {};
+  extensions = {};
+  require('./compiler').Compiler.reset();
 }
 
 function Scope(name, parentScope) {
@@ -2859,21 +2867,38 @@ Registry.prototype.has = function(name) {
 /**
  * @api private
  */
-Registry.prototype._finalize = function() {
-  if(!awaitingFinalizers.length) return;
+Registry.prototype._finalize = function(force) {
+  if(!force && !awaitingFinalizers.length) return;
   var finalizers = awaitingFinalizers;
+
+  finalizers.forEach(function(name) { registry[name].finalize(); });
+
   awaitingFinalizers = [];
 
-  finalizers.forEach(function(name) {
-    registry[name].finalize();
+  // Set the message field options
+  Object.keys(registry).forEach(function(name) {
+    var desc = registry[name].descriptor,
+        FieldOptions = registry['google.protobuf.FieldOptions'];
+
+    if(desc.field) {
+      desc.field.forEach(function(f) {
+        if(!f.options || f.options instanceof FieldOptions) return;
+        f.options = (new FieldOptions(f.options)).protoValues();
+      });
+    }
   });
 };
+
+Registry.prototype._addFinalize = function(name) {
+  awaitingFinalizers = awaitingFinalizers || [];
+  if(awaitingFinalizers.indexOf(name) < 0) awaitingFinalizers.push(name);
+}
 
 /**
  * @api private
  */
 Registry.prototype._addObject = function(name, protobuffObject) {
-  awaitingFinalizers.push(name);
+  this._addFinalize(name);
   registry[name] = protobuffObject;
 };
 
@@ -2891,6 +2916,7 @@ Registry.prototype._fetch = function(name) {
 Registry.prototype._addExtension = function(ext) {
   var extendee = ext.extendee.replace(/^\./, ''),
       key = extendee + ext.number;
+
   ext.extendee = extendee;
   extensions[key] = ext;
 };
@@ -2899,14 +2925,17 @@ Registry.prototype._addExtension = function(ext) {
  * @api private
  */
 Registry.prototype._applyExtensions = function() {
+  var self = this;
   Object.keys(extensions).forEach(function(key){
     var ext = extensions[key],
-        extendee = registry[ext.extendee].descriptor,
+        Extendee = registry[ext.extendee],
+        extendee = Extendee.descriptor,
         field;
 
     extendee.field = extendee.field || [];
     field = extendee.field.filter(function(f){ return f.number === ext.number; })[0];
     if(!field){
+      self._addFinalize(Extendee.fullName);
       extendee.field.push(ext);
     }
   });
@@ -2979,7 +3008,9 @@ Service.reset = function() { this.methods = {}; }
  */
 Service.finalize = function() {
   this.reset();
-  var self = this;
+  var self = this,
+      MethodOptions = registry.lookup('google.protobuf.MethodOptions');
+
   if ( this.descriptor && Array.isArray(this.descriptor.method) ) {
     this.descriptor.method.forEach(function(method) {
       method.inputType = registry.lookup(method.input_type.replace(/^\./, ''));
@@ -2989,7 +3020,7 @@ Service.finalize = function() {
         name: method.name,
         inputType: method.inputType,
         outputType: method.outputType,
-        options: method.options
+        options: new MethodOptions(method.options)
       };
     });
   }
@@ -11129,6 +11160,8 @@ module.exports=require(19)
 
 })(this);
 
+},{}],"duplexer":[function(require,module,exports){
+module.exports=require('zdmJ4e');
 },{}],"zdmJ4e":[function(require,module,exports){
 var Stream = require("stream")
 var writeMethods = ["write", "end", "destroy"]
@@ -11218,9 +11251,7 @@ function duplex(writer, reader) {
     }
 }
 
-},{"stream":28}],"duplexer":[function(require,module,exports){
-module.exports=require('zdmJ4e');
-},{}],41:[function(require,module,exports){
+},{"stream":28}],41:[function(require,module,exports){
 (function (process){
 // Approach:
 //

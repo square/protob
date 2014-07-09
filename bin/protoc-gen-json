@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-
 var Compiler = require('../lib/compiler').Compiler;
-var registry = Compiler.compile();
+var registry = Compiler.compileDescriptors([]);
 var Util = require('util');
 var singleFile = process.env.SINGLE_FILE;
 
@@ -16,34 +15,40 @@ process.stdin.on("data", function(data) {
 process.stdin.on("end", function(){
   buffer.flip();
 
-  var Request  = registry.lookup("google.protobuf.compiler.CodeGeneratorRequest");
-  var Response = registry.lookup("google.protobuf.compiler.CodeGeneratorResponse");
-  var File     = registry.lookup("google.protobuf.compiler.CodeGeneratorResponse");
+  var Request  = registry.lookup("google.protobuf.compiler.CodeGeneratorRequest"),
+      Response = registry.lookup("google.protobuf.compiler.CodeGeneratorResponse"),
+      File     = registry.lookup("google.protobuf.compiler.CodeGeneratorResponse"),
+      request  = Request.decode(buffer.copy(), null, { fieldAccess: 'number' });
 
-  var request  = Request.decode(buffer);
+  // Need to ensure that we have all extensions present and compiled before decoding
+  request.getValue('proto_file').forEach(function(file) {
+    Compiler.compileDescriptor(file);
+  });
+
+  request = Request.decode(buffer.copy(), null, { fieldAccess: 'number' });
+
   var response = new Response();
   var singleFiles = [], fileSet;
   response.file = [];
 
+  request.getValue('proto_file').forEach(function(file){
 
-  request.proto_file.forEach(function(file){
-    var f = new File();
+    var f = new File()
     if(singleFile) {
       singleFiles.push(file);
     } else {
-      f.name    = file.name.replace(/\.proto$/, '.json');
+      f.name    = file.getValue('name').replace(/\.proto$/, '.json');
       f.content = JSON.stringify([file], null, 2);
       response.file.push(f);
     }
   });
 
   if(singleFiles.length) {
-    var file = new File();
+    var file = new File({fieldAccess: 'number'});
     file.name = singleFile;
     file.content = JSON.stringify(singleFiles);
     response.file = [file];
   }
-
 
   var result = response.encode().toBuffer();
   process.stdout.write(result);

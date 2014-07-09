@@ -91,6 +91,7 @@ protofile.resolve().then( function(){
   }
 
   exec( cmd.join(" "), function(error, stdout, stderr) {
+    console.error(stderr);
     if( error ) {
       console.error(stderr);
     } else {
