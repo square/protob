@@ -87,7 +87,7 @@ Compiler.prototype.compileDescriptors = function(descriptors) {
   var self = this;
 
   descriptors.forEach(function(desc) {
-    self.descriptorsByFile[desc.name] = desc;
+    self.descriptorsByFile[desc[1] || desc.name] = desc;
   });
 
   descriptors.forEach(function(desc) {
@@ -104,14 +104,25 @@ Compiler.prototype.compileDescriptors = function(descriptors) {
  */
 Compiler.prototype.compileDescriptor = function(descriptor) {
   if(descriptor.__protobCompiled__ === true) return;
+  var FPD = registry().lookup('google.protobuf.FileProtoDescriptor');
+  if(FPD) descriptor = new Descriptor(descriptor);
 
-  this.descriptorsByFile[descriptor.name] = this.descriptorsByFile[descriptor.name] || descriptor;
+  // We need to bootstrap the things until we actually get the file proto descriptor
+  var self = this,
+      name = descriptor[1] || descriptor.name,
+      pkg  = descriptor[2] || descriptor.package,
+      dependency = descriptor[3] || descriptor.dependency,
+      message_type = descriptor[4] || descriptor.message_type,
+      enum_type = descriptor[5] || descriptor.enum_type,
+      service = descriptor[6] || descriptor.service,
+      extension = descriptor[7] || descriptor.extension,
+      options = descriptor[8] || descriptor.options,
+      source_code_info = descriptor[9] || descriptor.source_code_info;
 
-  var pkg = descriptor['package'],
-      self = this;
+  this.descriptorsByFile[name] = this.descriptorsByFile[name] || descriptor;
 
-  if(descriptor.dependency) {
-    descriptor.dependency.forEach(function(path) {
+  if(dependency) {
+    dependency.forEach(function(path) {
       var depDesc = self.descriptorsByFile[path];
 
       if(!depDesc) throw "Dependency not found: " + path;
@@ -120,26 +131,26 @@ Compiler.prototype.compileDescriptor = function(descriptor) {
     });
   }
 
-  if ( Array.isArray(descriptor.enum_type) ) {
-    descriptor.enum_type.forEach( function(enumDesc) {
+  if ( Array.isArray(enum_type) ) {
+    enum_type.forEach( function(enumDesc) {
       self.compileEnum(enumDesc, pkg, descriptor);
     });
   }
 
-  if ( Array.isArray(descriptor.message_type) ) {
-    descriptor.message_type.forEach( function(msgDesc) {
+  if ( Array.isArray(message_type) ) {
+    message_type.forEach( function(msgDesc) {
       self.compileMessage(msgDesc, pkg, descriptor);
     });
   }
 
   if ( Array.isArray(descriptor.service) ) {
-    descriptor.service.forEach( function(serviceDesc) {
+    service.forEach( function(serviceDesc) {
       self.compileService(serviceDesc, pkg, descriptor);
     });
   }
 
   if( Array.isArray(descriptor.extension) ) {
-    descriptor.extension.forEach(function(ext){
+    extension.forEach(function(ext){
       ext.pkg = pkg;
       registry()._addExtension(ext);
     });
@@ -160,7 +171,7 @@ Compiler.prototype.compileDescriptor = function(descriptor) {
  * @private
  */
 Compiler.prototype.compileEnum = function(enumDesc, pkg, descriptor) {
-  var fullName = pkg + "." + enumDesc.name,
+  var fullName = pkg + "." + (enumDesc[1] || enumDesc.name),
       Enum = require('./enum').Enum,
       obj;
 
@@ -186,12 +197,13 @@ Compiler.prototype.compileEnum = function(enumDesc, pkg, descriptor) {
  * @private
  */
 Compiler.prototype.compileMessage = function(messageDesc, pkg, descriptor) {
-  var fullName = pkg + "." + messageDesc.name,
+  var fullName = pkg + "." + (messageDesc[1] || messageDesc.name),
       Message = require('./message').Message,
-      self    = this;
+      self    = this,
+      messageEnumType = messageDesc[4] || messageDesc.enum_type;
 
-  if( Array.isArray(messageDesc.enum_type) ) {
-    messageDesc.enum_type.forEach(function(enumDesc) {
+  if( Array.isArray(messageEnumType) ) {
+    messageEnumType.forEach(function(enumDesc) {
       self.compileEnum(enumDesc, fullName, descriptor);
     });
   }
@@ -207,15 +219,17 @@ Compiler.prototype.compileMessage = function(messageDesc, pkg, descriptor) {
 
   registry()._fetch(fullName).fileDescriptor = descriptor;
 
-  if( Array.isArray(messageDesc.extension) ){
-    messageDesc.extension.forEach(function(ext){
+  var messageExtensions = messageDesc[6] || messageDesc.extension;
+  if( Array.isArray(messageExtensions) ){
+    messageExtensions.forEach(function(ext){
       ext.pkg = pkg;
       registry()._addExtension(ext);
     });
   }
 
-  if( Array.isArray(messageDesc.nested_type) ) {
-    messageDesc.nested_type.forEach(function(msgDesc) {
+  var nestedType = messageDesc[3] || messageDesc.nested_type;
+  if( Array.isArray(nestedType) ) {
+    nestedType.forEach(function(msgDesc) {
       self.compileMessage(msgDesc, fullName, descriptor);
     });
   }
@@ -232,7 +246,11 @@ Compiler.prototype.compileMessage = function(messageDesc, pkg, descriptor) {
  * @private
  */
 Compiler.prototype.compileService = function(serviceDesc, pkg, descriptor) {
-  var fullName = pkg + "." + serviceDesc.name,
+  var name = service[1]    || service.name,
+      method = service[2]  || service.method,
+      options = service[3] || service.options;
+
+  var fullName = pkg + "." + name,
       Service = require('./service').Service,
       self     = this;
 
@@ -244,13 +262,6 @@ Compiler.prototype.compileService = function(serviceDesc, pkg, descriptor) {
     nservice.parent = pkg;
     nservice.updateDescriptor = Service.updateDescriptor;
     registry()._addObject(fullName, nservice);
-  }
-
-  if( Array.isArray(serviceDesc.extension) ){
-    serviceDesc.extension.forEach(function(ext){
-      ext.pkg = pkg;
-      registry()._addExtension(ext);
-    });
   }
 
   registry()._fetch(fullName).fileDescriptor = descriptor;
@@ -665,9 +676,9 @@ var decoders = {
    * @return {Protob.Message} - The message that were read
    * @protected
    */
-  TYPE_MESSAGE: function(buffer, field) {
+  TYPE_MESSAGE: function(buffer, field, opts) {
     nBytes = buffer.readVarint32();
-    return field.descriptor.concrete.decode(buffer, nBytes);
+    return field.descriptor.concrete.decode(buffer, nBytes, opts);
   },
 
   field: function(wireType, buffer, skipRepeated, field, opts) {
@@ -1012,9 +1023,9 @@ Enum.prototype.updateDescriptor = function(desc) {
   /** @member {object} - The protobuf descriptor */
   this.descriptor = desc;
   /** @member {object} - The protocol buffer name for this enum */
-  this.clazz = desc.name;
+  this.clazz = desc[1] || desc.name;
   /** @member {object} - The protocol buffer full name for this Enum */
-  this.fullName = this.parent + "." + desc.name;
+  this.fullName = this.parent + "." + this.clazz;
   this.reset();
 };
 
@@ -1035,7 +1046,7 @@ Enum.prototype.options = function() {
   return this.descriptor.options;
 };
 
-/**
+/*this.clazz;
  * Resets the Enum after a new descriptor has been created.
  * Re-Creates the EnumValues associated with this enum.
  * Called as part of finalization
@@ -1045,14 +1056,15 @@ Enum.prototype.options = function() {
 Enum.prototype.reset = function() {
   this.v   = {};
   this.valuesByNumber = {};
-  var self = this;
+  var self = this,
+      val = this.descriptor[2] || this.descriptor.value;
 
-  if ( !Array.isArray(this.descriptor.value) ) { return; }
+  if ( !Array.isArray(val) ) { return; }
 
-  this.descriptor.value.forEach(function(v) {
-    var val = new EnumValue(v.name, v.number, v.options);
-    self.v[v.name]     = val;
-    self.valuesByNumber[v.number] = val;
+  val.forEach(function(v) {
+    var val = new EnumValue(v[1] || v.name, v[2] || v.number, v[3] || v.options);
+    self.v[v[1] || v.name]     = val;
+    self.valuesByNumber[v[2] || v.number] = val;
   });
 };
 
@@ -2044,15 +2056,16 @@ module.exports = [
  * Messages are introspective so you can discover the field definitions at runtime
  * @module protob/message
  */
-var _ = require('underscore');
-var MESSAGE = "MESSAGE";
-var registry = require('./registry');
-var coorcers = require('./compiler/coorcers').coorcers;
-var ByteBuffer = require('./protob').ByteBuffer;
-var Protob     = require('./protob').Protob;
-var decoders   = require('./compiler/decoders').decoders;
-var encoders   = require('./compiler/encoders').encoders;
-var EnumValue  = require('./enum').EnumValue;
+var _ = require('underscore'),
+    MESSAGE = "MESSAGE",
+    registry = require('./registry'),
+    coorcers = require('./compiler/coorcers').coorcers,
+    ByteBuffer = require('./protob').ByteBuffer,
+    Protob     = require('./protob').Protob,
+    decoders   = require('./compiler/decoders').decoders,
+    encoders   = require('./compiler/encoders').encoders,
+    EnumValue  = require('./enum').EnumValue,
+    sortBy     = require('./util').Util.sortBy;
 
 /**
  * The base class for all compiled protobuf messages.
@@ -2076,9 +2089,12 @@ var EnumValue  = require('./enum').EnumValue;
  */
 function Message(opts) {
   opts = opts || {};
-  var self = this;
+  var self = this,
+      fieldAccess = opts.fieldAccess || 'name';
 
-  this.setDefaults();
+  delete opts.fieldAccess;
+
+  this.setDefaults(fieldAccess);
 
   // Set the values passed in on this object
   Object.getOwnPropertyNames(opts).forEach(function(name){
@@ -2123,16 +2139,15 @@ Message.afterInitialize = [];
 Message.updateDescriptor = function(desc) {
   var self = this;
   this.descriptor     = desc;
-  this.clazz          = desc.name;
+  this.clazz          = desc[1] || desc.name;
   this.extensions     = this.extension;
-  this.fullName       = this.parent + "." + desc.name;
-  this.extensionRange = desc.extension_range;
-  this.opts           = desc.options;
-  this.fieldsById     = {};
-  this.fieldsByPkg    = {};
-  this.fieldsByName   = {};
+  this.fullName       = this.parent + "." + this.clazz;
+  this.extensionRange = desc[5] || desc.extension_range;
+  this.options        = desc[7] || desc.options;
 
   this.reset    = Message.reset;
+  this.reset();
+
   this.finalize = Message.finalize;
   this.decode   = Message.decode;
   this.encode   = Message.encode;
@@ -2144,12 +2159,11 @@ Message.updateDescriptor = function(desc) {
  * @private
  */
 Message.reset = function() {
-  var fields = this.fields = {};
-  if( Array.isArray(this.descriptor.field) ){
-    this.descriptor.field.forEach( function(f) {
-      fields[f.name] = f;
-    });
-  }
+  this.fields       = {};
+  this.fieldsById   = {};
+  this.fieldsByPkg  = {};
+  this.fieldsByName = {};
+  this.orderedFields = this.orderedFields;
 };
 
 /**
@@ -2160,13 +2174,17 @@ Message.reset = function() {
 function expandDescriptors(descriptor) {
   var TYPE  = registry.lookup('google.protobuf.FieldDescriptorProto.Type');
   var LABEL = registry.lookup('google.protobuf.FieldDescriptorProto.Label');
-  (descriptor.field || []).forEach(function(field) {
-    field.repeated = LABEL.fetch(field.label) == LABEL.fetch("LABEL_REPEATED");
-    field.required = LABEL.fetch(field.label) == LABEL.fetch("LABEL_REQUIRED");
-    var type = TYPE.fetch(field.type || field.type_name);
+  (descriptor[2] || descriptor.field || []).forEach(function(field) {
+    var label = field[4] || field.label,
+        type  = field[5] || field.type,
+        typeName = field[6] || field.type_name;
+
+    field.repeated = LABEL.fetch(label) == LABEL.fetch("LABEL_REPEATED");
+    field.required = LABEL.fetch(label) == LABEL.fetch("LABEL_REQUIRED");
+    var type = TYPE.fetch(type || typeName);
     field.fieldType = type.name;
     if ( type.name == 'TYPE_MESSAGE' || type.name == 'TYPE_ENUM') {
-      var name = field.type_name.replace(/^\./, '');
+      var name = typeName.replace(/^\./, '');
       field.descriptor = registry.lookup(name).descriptor;
       field.concrete   = registry.lookup(name);
     }
@@ -2178,18 +2196,33 @@ function expandDescriptors(descriptor) {
  * @private
  */
 Message.finalize = function() {
+  var DescriptorProto = registry.lookup('google.protobuf.DescriptorProto');
+
+  if(!this.descriptor instanceof DescriptorProto) {
+    this.descriptor = new DescriptorProto(this.descriptor);
+  }
+
   var desc = this.descriptor,
-      self = this;
+      self = this,
+      TYPE  = registry.lookup('google.protobuf.FieldDescriptorProto.Type'),
+      fields = desc[2] || desc.field;
 
   this.reset();
 
-  if ( desc.field && Array.isArray(desc.field) ) {
-    desc.field.forEach(function(field) {
-      self.fieldsById[field.number] = field;
+  if ( fields && Array.isArray(fields) ) {
+    fields.forEach(function(field) {
+      var number = field[3] || field.number,
+          name = field[1] || field.name,
+          label = field[4] || field.label,
+          extendee = field[2] || field.extendee;
+
+      self.fieldsById[number] = field;
 
       // This is not that useful because we can have fields with the same name from different packages
-      self.fieldsByName[field.name] = field; 
-      if(field.extendee){
+      self.fieldsByName[name] = self.fieldsByName[name] || [];
+      self.fieldsByName[name].push(field);
+
+      if(extendee) {
         self.fieldsByPkg[field.pkg] = self.fieldsByPkg[field.pkg] || [];
         if(self.fieldsByPkg[field.pkg].indexOf(field) < 0) self.fieldsByPkg[field.pkg].push(field);
       } else {
@@ -2198,31 +2231,23 @@ Message.finalize = function() {
       }
     });
 
-    this.orderedFields  = desc.field.sort(function(a,b) {
-      if( a.number < b.number ) {
+    this.orderedFields = fields.sort(function(a, b) { 
+      var _a = a[3] || a.number,
+          _b = b[3] || b.number;
+      if ( _a < _b) {
         return -1;
-      } else if ( a.number > b.number ) {
+      } else if (_a > _b) {
         return 1;
       } else {
         return 0;
       }
+
     });
   }
 
-  this.orderedFields = this.orderedFields || [];
-  this.fieldsById    = this.fieldsById    || {};
-  this.fieldsByName  = this.fieldsByName  || {};
-  this.fieldsByPkg   = this.fieldsByPkg   || {};
-
-  var TYPE  = registry.lookup('google.protobuf.FieldDescriptorProto.Type');
-
   this.type = TYPE.fetch("TYPE_MESSAGE");
-
   this.descriptor.concrete = this;
-
   expandDescriptors(this.descriptor);
-
-  this._finalDesc = this.descriptor;
 };
 
 /**
@@ -2250,22 +2275,54 @@ function encodeField(field, value, opts) {
   return val;
 };
 
+Message.prototype.getValue = function(fieldNameOrNumber, pkg) {
+  var field = this.getProtoField(fieldNameOrNumber, pkg);
+
+  if(!field) return undefined;
+
+  var val = this[field.number] || this[field.name];
+  return val;
+}
+
+Message.prototype.isFieldSet = function(fieldNameOrNumber, pkg) {
+  var field = this.getProtoField(fieldNameOrNumber, pkg);
+  if(!field) return undefined;
+  return this.hasOwnProperty(field.number) || this.hasOwnProperty(field.name);
+}
+
+Message.prototype.getProtoField = function(nameOrNumber, pkg) {
+  var constructor = this.constructor,
+      field;
+
+  if(pkg) {
+    field = constructor.fieldsByPkg[pkg].filter(function(f) {
+      return f.number == nameOrNumber || f.name == nameOrNumber;
+    })[0];
+  } else {
+    field = constructor.fieldsById[nameOrNumber]
+    field = field || (constructor.fieldsByName[nameOrNumber] || [])[0];
+  }
+  return field;
+}
+
 /**
  * Fetches the full EnumValue for a field given it's current value.
  * @param {string} fieldName - The name of the field to fetch the current EnumValue for
  * @return {Protob.EnumValue|undefined} - The current value of the enum field
  */
-Message.prototype.enumFor = function(fieldName){
-  var field;
-  if(this[fieldName] === undefined || this[fieldName] === null){
+Message.prototype.enumFor = function(fieldName) {
+  var field = this.getProtoField(fieldName),
+      val   = this.getValue(fieldName);
+
+  if(!field){ throw new Error('Field ' + fieldName + ' not defined'); }
+
+  if(val === undefined || val === null) {
     return;
   } else {
-    if(this[fieldName] instanceof EnumValue){
-      return this[fieldName];
+    if(val instanceof EnumValue) {
+      return val;
     } else {
-      field = this.constructor.fieldsByName[fieldName];
-      if(!field){ throw new Error('Field ' + fieldName + ' not defined'); }
-      return field.concrete.fetch(this[fieldName]);
+      return field.concrete.fetch(val);
     }
   }
 }
@@ -2297,18 +2354,17 @@ Message.prototype.enumName = function(fieldName){
  * This is called by the initializer
  * @private
  */
-Message.prototype.setDefaults = function(){
+Message.prototype.setDefaults = function(fieldAccess){
+  fieldAccess = fieldAccess || 'name';
   if(!this.constructor.descriptor) { return; }
   if(!this.constructor.descriptor.field) { return; }
 
   var fields = this.constructor.descriptor.field || [];
 
   for(var i=0; i<fields.length; i++){
-    if(this.hasOwnProperty(fields[i].name) && this[fields[i].name] !== undefined) continue;
-
-    if(fields[i].hasOwnProperty(fields[i].name)) {
-      this[fields[i].name] = fields[i].default_value;
-    }
+    if(this.isFieldSet(fields[i].number)) continue;
+    if(fields[i].default_value == undefined) continue;
+    this[fields[i][fieldAccess]] = fields[i].default_value;
   }
 };
 
@@ -2318,13 +2374,15 @@ Message.prototype.setDefaults = function(){
  * @param {object} opts - Options
  * @param {array} [opts.extensions] - An array of package names. Any extensions that are found, that are not in the extensions list are excluded. By default, all fields are included
  * @param {string} opts.enums - Select which style of ENUM rendering. 'full', 'name' or 'value' values. Default 'value'
+ * @param {boolean} opts.fieldIds - render the output using the field ID as the properties of the object. default false
  *
  * @return {Protob.Message} - The fully coorced message
  */
-Message.prototype.protoValues = function(opts){
+Message.prototype.protoValues = function(opts){ 
   opts = opts || {};
   var out = {},
       self = this,
+      fieldAccess = opts.fieldAccess || 'name',
       fields = this.constructor.descriptor.field || [],
       fieldsByPkg = this.constructor.fieldsByPkg;
 
@@ -2335,12 +2393,12 @@ Message.prototype.protoValues = function(opts){
   }
 
   fields.forEach(function(field) {
-    var value = self[field.name],
+    var value = self[field.number] || self[field.name],
         isMsg = field.fieldType === 'TYPE_MESSAGE';
     if ( field.repeated ) {
-      if ( value === undefined || value === null ){ out[field.name] = []; return; }
+      if ( value === undefined || value === null ){ out[field[fieldAccess]] = []; return; }
       if ( !Array.isArray(value) ) { value = [value]; }
-      out[field.name] = value.map(function(val) {
+      out[field[fieldAccess]] = value.map(function(val) {
         var item = encodeField.call(self, field, val, opts);
         if(isMsg && item) { item = item.protoValues(opts) }
         return item;
@@ -2349,7 +2407,7 @@ Message.prototype.protoValues = function(opts){
       var val = encodeField.call(self, field, value, opts);
       if ( val !== undefined && val !== null ) {
         if(isMsg && val) { val = val.protoValues(opts) }
-        out[field.name] = val;
+        out[field[fieldAccess]] = val;
       }
     }
   });
@@ -2404,14 +2462,18 @@ Message.decode = function(buffer, length, opts){
  */
 Message.prototype.decode = function(buffer, length, opts) {
   length = typeof length === 'number' ? length : -1;
-  var self = this;
-  var start = buffer.offset;
-  var msg = new (this.constructor)();
+  opts = opts || {};
+  var self = this,
+      fieldAccess = opts.fieldAccess || 'name',
+      start = buffer.offset,
+      msg = new (this.constructor)({fieldAccess: fieldAccess});
+
   while (buffer.offset < start+length || (length == -1 && buffer.remaining() > 0)) {
-    var tag = buffer.readVarint32();
-    var wireType = tag & 0x07,
-        id = tag >> 3;
-    var field = this.fieldById(id); // Message.Field only
+    var tag = buffer.readVarint32(),
+        wireType = tag & 0x07,
+        id = tag >> 3,
+        field = this.fieldById(id); // Message.Field only
+
     if (!field) {
         // "messages created by your new code can be parsed by your old code: old binaries simply ignore the new field when parsing."
        switch (wireType) {
@@ -2434,17 +2496,17 @@ Message.prototype.decode = function(buffer, length, opts) {
       continue;
     }
     if (field.repeated && (!field.options || !field.options.packed)) {
-      msg[field.name] = msg[field.name] || [];
-      msg[field.name].push(decoders.field(wireType, buffer, false, field, opts));
+      msg[field[fieldAccess]] = msg[field[fieldAccess]] || [];
+      msg[field[fieldAccess]].push(decoders.field(wireType, buffer, false, field, opts));
     } else {
-      msg[field.name] = decoders.field(wireType, buffer, false, field, opts);
+      msg[field[fieldAccess]] = decoders.field(wireType, buffer, false, field, opts);
     }
   }
   // Check if all required fields are present
   var LABEL = registry.lookup('google.protobuf.FieldDescriptorProto.Label');
   this.constructor.orderedFields.forEach( function(field) {
     if ( LABEL.fetch(field.label) != LABEL.fetch("LABEL_REQUIRED")) { return; }
-    if ( msg[field.name] === undefined || msg[field.name] === null ){
+    if ( msg[field[fieldAccess]] === undefined || msg[field[fieldAccess]] === null ){
       var err = new Error("Missing field "+field.name);
       err.decoded = msg;
       throw err;
@@ -2507,18 +2569,18 @@ Message.prototype.encode = function(buffer) {
 
   var fields = this.constructor.orderedFields,
       self = this,
-      protoFields = self.protoValues(),
+      protoFields = self.protoValues({fieldAccess: 'number'}),
       fieldEncoder = encoders.field;
 
   fields.forEach(function(field) {
-    if( field.required && (protoFields[field.name] === undefined || protoFields[field.name] === null )) {
+    if( field.required && (protoFields[field.number] === undefined || protoFields[field.number] === null )) {
       var err = new Error("Missing at least one required field for "+self.constructor.fullName+": "+field.name);
       throw(err);
     }
   });
 
   fields.forEach(function(field){
-    fieldEncoder(field, protoFields[field.name], buffer);
+    fieldEncoder(field, protoFields[field.number], buffer);
   });
 
   return buffer;
@@ -2526,7 +2588,7 @@ Message.prototype.encode = function(buffer) {
 
 exports.Message = Message;
 
-},{"./compiler/coorcers":4,"./compiler/decoders":5,"./compiler/encoders":6,"./enum":7,"./protob":10,"./registry":11,"underscore":48}],10:[function(require,module,exports){
+},{"./compiler/coorcers":4,"./compiler/decoders":5,"./compiler/encoders":6,"./enum":7,"./protob":10,"./registry":11,"./util":14,"underscore":48}],10:[function(require,module,exports){
 (function (global){
 /**
  * Provides protocol buffer support for Node.js
@@ -2883,7 +2945,7 @@ Registry.prototype._finalize = function(force) {
     if(desc.field) {
       desc.field.forEach(function(f) {
         if(!f.options || f.options instanceof FieldOptions) return;
-        f.options = (new FieldOptions(f.options)).protoValues();
+        f.options = (new FieldOptions(f.options)).protoValues({fieldAccess: 'number'});
       });
     }
   });
@@ -2914,8 +2976,8 @@ Registry.prototype._fetch = function(name) {
  * @api private
  */
 Registry.prototype._addExtension = function(ext) {
-  var extendee = ext.extendee.replace(/^\./, ''),
-      key = extendee + ext.number;
+  var extendee = (ext[2] || ext.extendee).replace(/^\./, ''),
+      key = extendee + (ext[3] || ext.number);
 
   ext.extendee = extendee;
   extensions[key] = ext;
@@ -2930,13 +2992,15 @@ Registry.prototype._applyExtensions = function() {
     var ext = extensions[key],
         Extendee = registry[ext.extendee],
         extendee = Extendee.descriptor,
+        fields = extendee[2] || extendee.field,
         field;
 
-    extendee.field = extendee.field || [];
-    field = extendee.field.filter(function(f){ return f.number === ext.number; })[0];
+    if(!fields) fields = extendee[2] = [];
+
+    field = (fields || []).filter(function(f){ return f.number === (ext[3] || ext.number); })[0];
     if(!field){
       self._addFinalize(Extendee.fullName);
-      extendee.field.push(ext);
+      fields.push(ext);
     }
   });
 };
@@ -2990,7 +3054,7 @@ Service.updateDescriptor = function(desc) {
 
   /** @member {string} - The full protobuf name including package */
   this.fullName       = this.parent + "." + desc.name;
-  this.opts           = desc.options;
+  this.options        = desc.options;
   this.reset = Service.reset;
   this.finalize = Service.finalize;
   this.reset();
@@ -3020,8 +3084,9 @@ Service.finalize = function() {
         name: method.name,
         inputType: method.inputType,
         outputType: method.outputType,
-        options: new MethodOptions(method.options)
       };
+
+      if(method.options) self.methods[method.name].options = new MethodOptions(method.options);
     });
   }
 };
@@ -3066,6 +3131,17 @@ module.exports = stevenInit;
  * A simple set of utilities
  */
 exports.Util = {
+  sortBy: function(fieldName) {
+    return function(a, b) {
+      if ( a[fieldName] < b[fieldName]) {
+        return -1;
+      } else if (a[fieldName] > b[fieldName] ) {
+        return 1;
+      } else {
+        return 0;
+      }
+    };
+  },
   /**
    * A sort by length of string function
    * @function
@@ -11160,8 +11236,6 @@ module.exports=require(19)
 
 })(this);
 
-},{}],"duplexer":[function(require,module,exports){
-module.exports=require('zdmJ4e');
 },{}],"zdmJ4e":[function(require,module,exports){
 var Stream = require("stream")
 var writeMethods = ["write", "end", "destroy"]
@@ -11251,7 +11325,9 @@ function duplex(writer, reader) {
     }
 }
 
-},{"stream":28}],41:[function(require,module,exports){
+},{"stream":28}],"duplexer":[function(require,module,exports){
+module.exports=require('zdmJ4e');
+},{}],41:[function(require,module,exports){
 (function (process){
 // Approach:
 //
@@ -13339,8 +13415,6 @@ function sigmund (subject, maxSessions) {
 
 // vim: set softtabstop=4 shiftwidth=4:
 
-},{}],"through":[function(require,module,exports){
-module.exports=require('MIlwAv');
 },{}],"MIlwAv":[function(require,module,exports){
 (function (process){
 var Stream = require('stream')
@@ -13453,7 +13527,9 @@ function through (write, end, opts) {
 
 
 }).call(this,require("/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js"))
-},{"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":25,"stream":28}],48:[function(require,module,exports){
+},{"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":25,"stream":28}],"through":[function(require,module,exports){
+module.exports=require('MIlwAv');
+},{}],48:[function(require,module,exports){
 //     Underscore.js 1.5.2
 //     http://underscorejs.org
 //     (c) 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors

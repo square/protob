@@ -71,7 +71,9 @@ var protofile = new Protofile();
 
 if( !fs.existsSync(Protofile.outputDir)){ fs.mkdirSync(Protofile.outputDir); }
 
-protofile.resolve().then( function(){
+Q = require('q');
+// protofile.resolve().then( function(){
+Q().then(function() {
   var compileStart = Date.now(), finish;
 
   try{

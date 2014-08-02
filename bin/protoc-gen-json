@@ -18,36 +18,36 @@ process.stdin.on("end", function(){
   var Request  = registry.lookup("google.protobuf.compiler.CodeGeneratorRequest"),
       Response = registry.lookup("google.protobuf.compiler.CodeGeneratorResponse"),
       File     = registry.lookup("google.protobuf.compiler.CodeGeneratorResponse"),
-      request  = Request.decode(buffer.copy(), null, { fieldAccess: 'number' });
+      request  = Request.decode(buffer.copy(), null, {});
 
   // Need to ensure that we have all extensions present and compiled before decoding
-  request.getValue('proto_file').forEach(function(file) {
+  request.getf('proto_file').forEach(function(file) {
     Compiler.compileDescriptor(file);
   });
 
-  request = Request.decode(buffer.copy(), null, { fieldAccess: 'number' });
+  // Re-Read the buffer to make sure we've got all the extensions
+  request = Request.decode(buffer.copy(), null, {});
 
   var response = new Response();
   var singleFiles = [], fileSet;
   response.file = [];
 
-  request.getValue('proto_file').forEach(function(file){
-
+  request.getf('proto_file').forEach(function(file){
     var f = new File()
     if(singleFile) {
-      singleFiles.push(file);
+      singleFiles.push(file.asJSON({fieldsAsNumber: true}));
     } else {
-      f.name    = file.getValue('name').replace(/\.proto$/, '.json');
-      f.content = JSON.stringify([file], null, 2);
-      response.file.push(f);
+      f.setf(file.getf('name').replace(/\.proto$/, '.json'), 'name');
+      f.setf(JSON.stringify([file.asJSON({fieldsAsNumbers: true})], null, 2), 'content');
+      response.getf('file').push(f);
     }
   });
 
   if(singleFiles.length) {
-    var file = new File({fieldAccess: 'number'});
-    file.name = singleFile;
-    file.content = JSON.stringify(singleFiles);
-    response.file = [file];
+    var file = new File();
+    file.setf(singleFile, 'name');
+    file.setf(JSON.stringify(singleFiles), 'content');
+    response.setf([file], 'file');
   }
 
   var result = response.encode().toBuffer();
