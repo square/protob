@@ -1,45 +1,51 @@
 [
   {
-    "name": "test/common.proto",
-    "package": "test.common",
-    "message_type": [
+    "1": "test/common.proto",
+    "2": "test.common",
+    "3": [],
+    "4": [
       {
-        "name": "Extendable",
-        "field": [
+        "1": "Extendable",
+        "2": [
           {
-            "name": "name",
-            "number": 1,
-            "label": 1,
-            "type": 9,
-            "doc": ""
+            "1": "name",
+            "3": 1,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_STRING",
+            "9": ""
           }
         ],
-        "extension_range": [
+        "3": [],
+        "4": [],
+        "5": [
           {
-            "start": 1000,
-            "end": 1100
+            "1": 1000,
+            "2": 1100
           }
         ],
-        "doc": ""
+        "6": [],
+        "8": ""
       }
     ],
-    "enum_type": [
+    "5": [
       {
-        "name": "Gender",
-        "value": [
+        "1": "Gender",
+        "2": [
           {
-            "name": "FEMALE",
-            "number": 1,
-            "doc": ""
+            "1": "FEMALE",
+            "2": 1,
+            "4": ""
           },
           {
-            "name": "MALE",
-            "number": 2,
-            "doc": ""
+            "1": "MALE",
+            "2": 2,
+            "4": ""
           }
         ],
-        "doc": ""
+        "4": ""
       }
-    ]
+    ],
+    "6": [],
+    "7": []
   }
 ]

@@ -1,231 +1,236 @@
 [
   {
-    "name": "test/fox/simpsons/character.proto",
-    "package": "test.fox.simpsons",
-    "dependency": [
+    "1": "test/fox/simpsons/character.proto",
+    "2": "test.fox.simpsons",
+    "3": [
       "test/common.proto"
     ],
-    "message_type": [
+    "4": [
       {
-        "name": "Character",
-        "field": [
+        "1": "Character",
+        "2": [
           {
-            "name": "name",
-            "number": 1,
-            "label": 2,
-            "type": 9,
-            "doc": ""
+            "1": "name",
+            "3": 1,
+            "4": "LABEL_REQUIRED",
+            "5": "TYPE_STRING",
+            "9": ""
           },
           {
-            "name": "gender",
-            "number": 2,
-            "label": 1,
-            "type": 14,
-            "type_name": ".test.common.Gender",
-            "doc": ""
+            "1": "gender",
+            "3": 2,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_ENUM",
+            "6": ".test.common.Gender",
+            "9": ""
           },
           {
-            "name": "age",
-            "number": 3,
-            "label": 1,
-            "type": 13,
-            "doc": ""
+            "1": "age",
+            "3": 3,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_UINT32",
+            "9": ""
           },
           {
-            "name": "is_evil",
-            "number": 4,
-            "label": 1,
-            "type": 8,
-            "default_value": true,
-            "doc": ""
+            "1": "is_evil",
+            "3": 4,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_BOOL",
+            "7": "true",
+            "9": ""
           },
           {
-            "name": "is_lovable",
-            "number": 5,
-            "label": 1,
-            "type": 8,
-            "default_value": false,
-            "doc": ""
+            "1": "is_lovable",
+            "3": 5,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_BOOL",
+            "7": "false",
+            "9": ""
           },
           {
-            "name": "joke_count",
-            "number": 6,
-            "label": 1,
-            "type": 3,
-            "default_value": {
-              "low": 0,
-              "high": 0,
-              "unsigned": false
-            },
-            "doc": ""
+            "1": "joke_count",
+            "3": 6,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_INT64",
+            "7": "0",
+            "9": ""
           }
         ],
-        "doc": ""
+        "3": [],
+        "4": [],
+        "5": [],
+        "6": [],
+        "8": ""
       },
       {
-        "name": "Stuff",
-        "field": [
+        "1": "Stuff",
+        "2": [
           {
-            "name": "string_value",
-            "number": 1,
-            "label": 1,
-            "type": 9,
-            "doc": ""
+            "1": "string_value",
+            "3": 1,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_STRING",
+            "9": ""
           },
           {
-            "name": "double_value",
-            "number": 2,
-            "label": 1,
-            "type": 1,
-            "doc": ""
+            "1": "double_value",
+            "3": 2,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_DOUBLE",
+            "9": ""
           },
           {
-            "name": "float_value",
-            "number": 3,
-            "label": 1,
-            "type": 2,
-            "doc": ""
+            "1": "float_value",
+            "3": 3,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_FLOAT",
+            "9": ""
           },
           {
-            "name": "int32_value",
-            "number": 4,
-            "label": 1,
-            "type": 5,
-            "doc": ""
+            "1": "int32_value",
+            "3": 4,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_INT32",
+            "9": ""
           },
           {
-            "name": "int64_value",
-            "number": 5,
-            "label": 1,
-            "type": 3,
-            "doc": ""
+            "1": "int64_value",
+            "3": 5,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_INT64",
+            "9": ""
           },
           {
-            "name": "uint32_value",
-            "number": 6,
-            "label": 1,
-            "type": 13,
-            "doc": ""
+            "1": "uint32_value",
+            "3": 6,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_UINT32",
+            "9": ""
           },
           {
-            "name": "uint64_value",
-            "number": 7,
-            "label": 1,
-            "type": 4,
-            "doc": ""
+            "1": "uint64_value",
+            "3": 7,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_UINT64",
+            "9": ""
           },
           {
-            "name": "fixed32_value",
-            "number": 8,
-            "label": 1,
-            "type": 7,
-            "doc": ""
+            "1": "fixed32_value",
+            "3": 8,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_FIXED32",
+            "9": ""
           },
           {
-            "name": "fixed64_value",
-            "number": 9,
-            "label": 1,
-            "type": 6,
-            "doc": ""
+            "1": "fixed64_value",
+            "3": 9,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_FIXED64",
+            "9": ""
           },
           {
-            "name": "sfixed32_value",
-            "number": 10,
-            "label": 1,
-            "type": 15,
-            "doc": ""
+            "1": "sfixed32_value",
+            "3": 10,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_SFIXED32",
+            "9": ""
           },
           {
-            "name": "sfixed64_value",
-            "number": 11,
-            "label": 1,
-            "type": 16,
-            "doc": ""
+            "1": "sfixed64_value",
+            "3": 11,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_SFIXED64",
+            "9": ""
           },
           {
-            "name": "sint32_value",
-            "number": 12,
-            "label": 1,
-            "type": 17,
-            "doc": ""
+            "1": "sint32_value",
+            "3": 12,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_SINT32",
+            "9": ""
           },
           {
-            "name": "sint64_value",
-            "number": 13,
-            "label": 1,
-            "type": 18,
-            "doc": ""
+            "1": "sint64_value",
+            "3": 13,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_SINT64",
+            "9": ""
           },
           {
-            "name": "bool_value",
-            "number": 14,
-            "label": 1,
-            "type": 8,
-            "doc": ""
+            "1": "bool_value",
+            "3": 14,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_BOOL",
+            "9": ""
           },
           {
-            "name": "bytes_value",
-            "number": 15,
-            "label": 1,
-            "type": 12,
-            "doc": ""
+            "1": "bytes_value",
+            "3": 15,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_BYTES",
+            "9": ""
           },
           {
-            "name": "message_value",
-            "number": 16,
-            "label": 1,
-            "type": 11,
-            "type_name": ".test.fox.simpsons.Character",
-            "doc": ""
+            "1": "message_value",
+            "3": 16,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_MESSAGE",
+            "6": ".test.fox.simpsons.Character",
+            "9": ""
           }
         ],
-        "enum_type": [
+        "3": [],
+        "4": [
           {
-            "name": "GreetingType",
-            "value": [
+            "1": "GreetingType",
+            "2": [
               {
-                "name": "NICE",
-                "number": 1,
-                "doc": ""
+                "1": "NICE",
+                "2": 1,
+                "4": ""
               },
               {
-                "name": "NASTY",
-                "number": 2,
-                "doc": ""
+                "1": "NASTY",
+                "2": 2,
+                "4": ""
               }
             ],
-            "doc": ""
+            "4": ""
           }
         ],
-        "extension": [
+        "5": [],
+        "6": [
           {
-            "name": "greet",
-            "extendee": ".test.common.Extendable",
-            "number": 1000,
-            "label": 1,
-            "type": 8,
-            "doc": ""
+            "1": "greet",
+            "2": ".test.common.Extendable",
+            "3": 1000,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_BOOL",
+            "9": ""
           },
           {
-            "name": "msg",
-            "extendee": ".test.common.Extendable",
-            "number": 1001,
-            "label": 1,
-            "type": 9,
-            "doc": ""
+            "1": "msg",
+            "2": ".test.common.Extendable",
+            "3": 1001,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_STRING",
+            "9": ""
           },
           {
-            "name": "greeting_type",
-            "extendee": ".test.common.Extendable",
-            "number": 1002,
-            "label": 1,
-            "type": 14,
-            "type_name": ".test.fox.simpsons.Stuff.GreetingType",
-            "doc": ""
+            "1": "greeting_type",
+            "2": ".test.common.Extendable",
+            "3": 1002,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_ENUM",
+            "6": ".test.fox.simpsons.Stuff.GreetingType",
+            "9": ""
           }
         ],
-        "doc": ""
+        "8": ""
       }
-    ]
+    ],
+    "5": [],
+    "6": [],
+    "7": []
   }
 ]

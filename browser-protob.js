@@ -9,7 +9,7 @@ exports.stevenInit   = require('./lib/steven_init');
 
 exports.Compiler.compile(); // compile the base protos
 
-},{"./lib/compiler":3,"./lib/enum":7,"./lib/message":9,"./lib/protob":10,"./lib/service":12,"./lib/steven_init":13}],"protob":[function(require,module,exports){
+},{"./lib/compiler":3,"./lib/enum":8,"./lib/message":10,"./lib/protob":11,"./lib/service":13,"./lib/steven_init":14}],"protob":[function(require,module,exports){
 module.exports=require('Focm2+');
 },{}],3:[function(require,module,exports){
 /**
@@ -20,6 +20,7 @@ module.exports=require('Focm2+');
  */
 var Path = require('path'),
     Util = require('util'),
+    goog = require('./compiler/google-protos-defn'),
     pUtil = require('./util').Util,
     compiler = new Compiler(),
     _registry;
@@ -35,9 +36,7 @@ module.exports.Compiler = compiler;
  * @constructor
  */
 function Compiler(){
-  this.reset = function() {
-    this.descriptorsByFile = {};
-  }.bind(this);
+  this.reset = function() { this.descriptorsByFile = {}; }.bind(this);
 
   this.reset();
 }
@@ -83,16 +82,27 @@ Compiler.prototype.compile = function(){
   return registry();
 }
 
+/**
+ * @param {Array<google.protobuf.FileDescriptorProto>} descriptors - A list of file descriptors
+ * @private
+ */
 Compiler.prototype.compileDescriptors = function(descriptors) {
-  var self = this;
+  var self = this,
+    reg = registry(),
+      fd = goog.fileDescriptorProto,
+      FD;
 
+  if(reg.googleCompiled) FD = reg.lookup('google.protobuf.FileDescriptorProto');
+
+  // The file descriptors should be available immediately after the initial google compilation
+  // They also need to make sure that all dependencies are compiled first
   descriptors.forEach(function(desc) {
-    self.descriptorsByFile[desc[1] || desc.name] = desc;
+    self.descriptorsByFile[desc[fd.NAME]] = desc;
   });
 
   descriptors.forEach(function(desc) {
     // These descriptors are file descriptors
-    self.compileDescriptor(desc);
+    self.compileDescriptor(self.descriptorsByFile[desc[fd.NAME]]);
   });
   return registry();
 };
@@ -104,20 +114,27 @@ Compiler.prototype.compileDescriptors = function(descriptors) {
  */
 Compiler.prototype.compileDescriptor = function(descriptor) {
   if(descriptor.__protobCompiled__ === true) return;
-  var FPD = registry().lookup('google.protobuf.FileProtoDescriptor');
-  if(FPD) descriptor = new Descriptor(descriptor);
 
   // We need to bootstrap the things until we actually get the file proto descriptor
+  var FD = goog.fileDescriptorProto,
+      reg = registry(),
+      FDP = reg.lookup('google.protobuf.FileDescriptorProto');
+
+  if(FDP && !(descriptor instanceof FDP)) {
+    descriptor = new FDP(descriptor);
+    this.descriptorsByFile[descriptor[FD.NAME]] = descriptor;
+  }
+
   var self = this,
-      name = descriptor[1] || descriptor.name,
-      pkg  = descriptor[2] || descriptor.package,
-      dependency = descriptor[3] || descriptor.dependency,
-      message_type = descriptor[4] || descriptor.message_type,
-      enum_type = descriptor[5] || descriptor.enum_type,
-      service = descriptor[6] || descriptor.service,
-      extension = descriptor[7] || descriptor.extension,
-      options = descriptor[8] || descriptor.options,
-      source_code_info = descriptor[9] || descriptor.source_code_info;
+      name = descriptor[FD.NAME],
+      pkg  = descriptor[FD.PACKAGE],
+      dependency = descriptor[FD.DEPENDENCY],
+      message_type = descriptor[FD.MESSAGE_TYPE],
+      enum_type = descriptor[FD.ENUM_TYPE],
+      service = descriptor[FD.SERVICE],
+      extension = descriptor[FD.EXTENSION],
+      options = descriptor[FD.OPTIONS],
+      source_code_info = descriptor[FD.SOURCE_CODE_INFO];
 
   this.descriptorsByFile[name] = this.descriptorsByFile[name] || descriptor;
 
@@ -143,13 +160,13 @@ Compiler.prototype.compileDescriptor = function(descriptor) {
     });
   }
 
-  if ( Array.isArray(descriptor.service) ) {
+  if ( Array.isArray(service) ) {
     service.forEach( function(serviceDesc) {
       self.compileService(serviceDesc, pkg, descriptor);
     });
   }
 
-  if( Array.isArray(descriptor.extension) ) {
+  if( Array.isArray(extension) ) {
     extension.forEach(function(ext){
       ext.pkg = pkg;
       registry()._addExtension(ext);
@@ -158,7 +175,6 @@ Compiler.prototype.compileDescriptor = function(descriptor) {
 
   registry()._applyExtensions();
   registry()._finalize(true);
-
   descriptor.__protobCompiled__ = true;
 }
 
@@ -171,7 +187,9 @@ Compiler.prototype.compileDescriptor = function(descriptor) {
  * @private
  */
 Compiler.prototype.compileEnum = function(enumDesc, pkg, descriptor) {
-  var fullName = pkg + "." + (enumDesc[1] || enumDesc.name),
+  var enumDescriptor = goog.enumDescriptorProto,
+      name = enumDesc[enumDescriptor.NAME],
+      fullName = pkg + "." + name,
       Enum = require('./enum').Enum,
       obj;
 
@@ -197,10 +215,20 @@ Compiler.prototype.compileEnum = function(enumDesc, pkg, descriptor) {
  * @private
  */
 Compiler.prototype.compileMessage = function(messageDesc, pkg, descriptor) {
-  var fullName = pkg + "." + (messageDesc[1] || messageDesc.name),
+  var descriptorProto = goog.descriptorProto,
+      protobufs = registry().scope('google.protobuf'),
+      DescriptorProto = protobufs.lookup('DescriptorProto'),
+      nmessage;
+
+  if(registry().googleCompiled && DescriptorProto && !(messageDesc instanceof DescriptorProto)) {
+    messageDesc = new DescriptorProto(messageDesc);
+  }
+
+  var fullName = pkg + "." + (messageDesc[descriptorProto.NAME]),
       Message = require('./message').Message,
       self    = this,
-      messageEnumType = messageDesc[4] || messageDesc.enum_type;
+      messageEnumType = messageDesc[descriptorProto.ENUM_TYPE];
+  if(fullName == 'google.protobuf.FieldOptions') debugger;
 
   if( Array.isArray(messageEnumType) ) {
     messageEnumType.forEach(function(enumDesc) {
@@ -219,7 +247,8 @@ Compiler.prototype.compileMessage = function(messageDesc, pkg, descriptor) {
 
   registry()._fetch(fullName).fileDescriptor = descriptor;
 
-  var messageExtensions = messageDesc[6] || messageDesc.extension;
+  var messageExtensions = messageDesc[descriptorProto.EXTENSION];
+
   if( Array.isArray(messageExtensions) ){
     messageExtensions.forEach(function(ext){
       ext.pkg = pkg;
@@ -227,7 +256,7 @@ Compiler.prototype.compileMessage = function(messageDesc, pkg, descriptor) {
     });
   }
 
-  var nestedType = messageDesc[3] || messageDesc.nested_type;
+  var nestedType = messageDesc[descriptorProto.NESTED_TYPE];
   if( Array.isArray(nestedType) ) {
     nestedType.forEach(function(msgDesc) {
       self.compileMessage(msgDesc, fullName, descriptor);
@@ -246,11 +275,11 @@ Compiler.prototype.compileMessage = function(messageDesc, pkg, descriptor) {
  * @private
  */
 Compiler.prototype.compileService = function(serviceDesc, pkg, descriptor) {
-  var name = service[1]    || service.name,
-      method = service[2]  || service.method,
-      options = service[3] || service.options;
-
-  var fullName = pkg + "." + name,
+  var serviceDescriptor = goog.serviceDescriptorProto,
+      name = serviceDesc[serviceDescriptor.NAME],
+      method = serviceDesc[serviceDescriptor.METHOD],
+      options = serviceDesc[serviceDescriptor.OPTIONS],
+      fullName = pkg + "." + name,
       Service = require('./service').Service,
       self     = this;
 
@@ -268,18 +297,20 @@ Compiler.prototype.compileService = function(serviceDesc, pkg, descriptor) {
   registry()._fetch(fullName).updateDescriptor(serviceDesc);
 };
 
-},{"./enum":7,"./message":9,"./registry":11,"./service":12,"./util":14,"fs":16,"glob":41,"path":26,"util":36}],4:[function(require,module,exports){
+},{"./compiler/google-protos-defn":7,"./enum":8,"./message":10,"./registry":12,"./service":13,"./util":15,"fs":17,"glob":42,"path":27,"util":37}],4:[function(require,module,exports){
 /**
  * A collection of encoding functions that act on a value and encode it in wire format
  * @module protob
  * @namespace coorcers
  * @exports coorcers
  */
-var Long = require('../protob').Protob.Long;
-var ByteBuffer = require('../protob').ByteBuffer;
-var Util = require('util');
-var Enum = require('../enum').Enum;
-var EnumValue = require('../enum').EnumValue;
+var Long = require('../protob').Protob.Long,
+    ByteBuffer = require('../protob').ByteBuffer,
+    Util = require('util'),
+    Enum = require('../enum').Enum,
+    EnumValue = require('../enum').EnumValue,
+    goog = require('./google-protos-defn'),
+    fd = goog.fieldDescriptorProto;
 
 var UNIMPLEMENTED = function(val) { return val; };
 
@@ -378,7 +409,6 @@ var coorcers = {
       }
       if ( !r ) { 
         if( isNaN(Number(val)) ){
-          console.log(val);
           throw( new Error(fn + ": Unknown ENUM value " + val + " for " + e.fullName));
         } else {
           r = new EnumValue({ number: val, name: undefined });
@@ -390,6 +420,9 @@ var coorcers = {
           r =  r.name;
           break;
         case 'value':
+        case 'numbers':
+        case 'values':
+        case 'number':
           r = r.number;
           break;
         default:
@@ -461,19 +494,22 @@ var coorcers = {
 
 exports.coorcers = coorcers;
 
-},{"../enum":7,"../protob":10,"util":36}],5:[function(require,module,exports){
+},{"../enum":8,"../protob":11,"./google-protos-defn":7,"util":37}],5:[function(require,module,exports){
 /**
  * A collection of decoding functions that act on an encoded (wire format) buffer and convert to field values
  * @module protob
  * @namespace dencoders
  * @exports dencoders
  */
-var Util = require('util');
-var Protob = require('../protob').Protob;
-var registry = require('../registry');
+var Util = require('util'),
+    Protob = require('../protob').Protob,
+    registry = require('../registry'),
+    goog = require('./google-protos-defn'),
+    fd = goog.fieldDescriptorProto,
+    fo = goog.fieldOptions;
 
 var UNIMPLEMENTED = function(buffer, field) {
-  throw("TYPE GROUP for " + field.name + " is not implemented");
+  throw("TYPE GROUP for " + field[fd.NAME] + " is not implemented");
 };
 
 var decoders = {
@@ -486,7 +522,7 @@ var decoders = {
    * @return {number} - The double to return
    * @protected
    */
-  TYPE_DOUBLE:   function(buffer, field) { return buffer.readDouble();                } ,
+  TYPE_DOUBLE: function(buffer, field) { return buffer.readDouble(); } ,
 
 
   /**
@@ -497,7 +533,7 @@ var decoders = {
    * @return {number} - The float that was read
    * @protected
    */
-  TYPE_FLOAT:    function(buffer, field) { return buffer.readFloat();                 } ,
+  TYPE_FLOAT: function(buffer, field) { return buffer.readFloat(); } ,
 
   /**
    * Decode an int32
@@ -507,7 +543,7 @@ var decoders = {
    * @return {integer} - The int that was read
    * @protected
    */
-  TYPE_INT32:    function(buffer, field) { return buffer.readVarint32() | 0;          } ,
+  TYPE_INT32: function(buffer, field) { return buffer.readVarint32() | 0; } ,
 
   /**
    * Decode an int64
@@ -517,7 +553,7 @@ var decoders = {
    * @return {Long} - The int that was read
    * @protected
    */
-  TYPE_INT64:    function(buffer, field) { return buffer.readVarint64();              } ,
+  TYPE_INT64: function(buffer, field) { return buffer.readVarint64(); } ,
 
   /**
    * Decode an uint32
@@ -527,7 +563,7 @@ var decoders = {
    * @return {number} - The int that was read
    * @protected
    */
-  TYPE_UINT32:   function(buffer, field) { return buffer.readVarint32() >>> 0;        } ,
+  TYPE_UINT32: function(buffer, field) { return buffer.readVarint32() >>> 0; } ,
 
   /**
    * Decode an uint64
@@ -537,7 +573,7 @@ var decoders = {
    * @return {Long} - The int that was read
    * @protected
    */
-  TYPE_UINT64:   function(buffer, field) { return buffer.readVarint64().toUnsigned(); } ,
+  TYPE_UINT64: function(buffer, field) { return buffer.readVarint64().toUnsigned(); } ,
 
   /**
    * Decode an fixed32
@@ -547,7 +583,7 @@ var decoders = {
    * @return {number} - The int that was read
    * @protected
    */
-  TYPE_FIXED32:  function(buffer, field) { return buffer.readUint32() >>> 0;          } ,
+  TYPE_FIXED32: function(buffer, field) { return buffer.readUint32() >>> 0; },
 
   /**
    * Decode an fixed64
@@ -557,7 +593,7 @@ var decoders = {
    * @return {Long} - The number that was read
    * @protected
    */
-  TYPE_FIXED64:  function(buffer, field) { return buffer.readUint64();                } ,
+  TYPE_FIXED64: function(buffer, field) { return buffer.readUint64(); },
 
   /**
    * Decode an sfixed32
@@ -567,7 +603,7 @@ var decoders = {
    * @return {number} - The number that was read
    * @protected
    */
-  TYPE_SFIXED32: function(buffer, field) { return buffer.readInt32() | 0;             } ,
+  TYPE_SFIXED32: function(buffer, field) { return buffer.readInt32() | 0; },
 
   /**
    * Decode an sfixed64
@@ -577,7 +613,7 @@ var decoders = {
    * @return {Long} - The number that was read
    * @protected
    */
-  TYPE_SFIXED64: function(buffer, field) { return buffer.readInt64();                 } ,
+  TYPE_SFIXED64: function(buffer, field) { return buffer.readInt64(); },
 
   /**
    * Decode an sint32
@@ -587,7 +623,7 @@ var decoders = {
    * @return {number} - The number that was read
    * @protected
    */
-  TYPE_SINT32:   function(buffer, field) { return buffer.readZigZagVarint32() | 0;    } ,
+  TYPE_SINT32: function(buffer, field) { return buffer.readZigZagVarint32() | 0; },
 
   /**
    * Decode an sint64
@@ -597,7 +633,7 @@ var decoders = {
    * @return {Long} - The number that was read
    * @protected
    */
-  TYPE_SINT64:   function(buffer, field) { return buffer.readZigZagVarint64();        } ,
+  TYPE_SINT64: function(buffer, field) { return buffer.readZigZagVarint64(); },
 
   /**
    * Decode an boolean
@@ -607,7 +643,7 @@ var decoders = {
    * @return {boolean} - The boolean that was read
    * @protected
    */
-  TYPE_BOOL:     function(buffer, field) { return !!buffer.readVarint32();            } ,
+  TYPE_BOOL: function(buffer, field) { return !!buffer.readVarint32(); },
 
   /**
    * Decode a string
@@ -617,9 +653,9 @@ var decoders = {
    * @return {string} - The string that was read
    * @protected
    */
-  TYPE_STRING:   function(buffer, field) { return buffer.readVString();               } ,
+  TYPE_STRING: function(buffer, field) { return buffer.readVString(); },
 
-  TYPE_GROUP:    UNIMPLEMENTED,
+  TYPE_GROUP: UNIMPLEMENTED,
 
   /**
    * Decode an enum value
@@ -631,7 +667,7 @@ var decoders = {
    * @return {string|number|EnumValue} - The enum value that was read
    * @protected
    */
-  TYPE_ENUM:     function(buffer, field, opts) {
+  TYPE_ENUM: function(buffer, field, opts) {
     var raw = buffer.readVarint32(),
         r;
 
@@ -642,8 +678,11 @@ var decoders = {
       case 'name':
         r = field.concrete.fetch(raw).name;
         break;
+      case 'number':
+        r = field.concrete.fetch(raw).number;
+        break;
       default:
-        r = raw;
+        r = field.concrete.fetch(raw);
         break;
     }
     return r;
@@ -657,7 +696,7 @@ var decoders = {
    * @return {ByteBuffer} - The bytes that were read
    * @protected
    */
-  TYPE_BYTES:    function(buffer, field) {
+  TYPE_BYTES: function(buffer, field) {
     nBytes = buffer.readVarint32();
     if (buffer.remaining() < nBytes) {
       throw(new Error("Illegal number of bytes for "+this.toString(true)+": "+nBytes+" required but got only "+buffer.remaining()));
@@ -682,13 +721,18 @@ var decoders = {
   },
 
   field: function(wireType, buffer, skipRepeated, field, opts) {
-    var nBytes;
-    var fieldWireType = Protob.TYPES[field.fieldType] && Protob.TYPES[field.fieldType].wireType;
+    var nBytes,
+        fieldWireType = Protob.TYPES[field.fieldType] && Protob.TYPES[field.fieldType].wireType,
+        label = field[fd.LABEL],
+        repeated;
+
+    if(label && label.number) label = label.number;
+    repeated = label == fd.label.LABEL_REPEATED;
 
     if (wireType != fieldWireType && (skipRepeated || wireType != Protob.WIRE_TYPES.LDELIM || !field.repeated)) {
-      throw(new Error("Illegal wire type for field "+field.name+": "+wireType+" ("+fieldWireType+" expected)"));
+      throw(new Error("Illegal wire type for field "+field[fd.NAME]+": "+wireType+" ("+fieldWireType+" expected)"));
     }
-    if (wireType == Protob.WIRE_TYPES.LDELIM && field.repeated && (field.options && field.options.packed)) {
+    if (wireType == Protob.WIRE_TYPES.LDELIM && repeated && (field[fd.OPTIONS] && field[fd.OPTIONS][fo.PACKED])) {
       if( !skipRepeated ){
         nBytes = buffer.readVarint32();
         nBytes = buffer.offset + nBytes; // Limit
@@ -713,7 +757,8 @@ var decoders = {
 
 exports.decoders = decoders;
 
-},{"../protob":10,"../registry":11,"util":36}],6:[function(require,module,exports){
+},{"../protob":11,"../registry":12,"./google-protos-defn":7,"util":37}],6:[function(require,module,exports){
+var goog = require('./google-protos-defn');
 /**
  * A collection of encoding functions that act on a value and encode it in wire format
  * @module protob
@@ -875,7 +920,7 @@ var encoders = {
    */
   TYPE_ENUM: function(field, value, buffer) {
     if(value instanceof EnumValue) {
-      buffer.writeVarint32(value.number);
+      buffer.writeVarint32(value[goog.enumValueDescriptorProto.NUMBER]);
     } else {
       buffer.writeVarint32(value);
     }
@@ -917,8 +962,10 @@ var encoders = {
   },
 
   field: function(field, value, buffer){
-    if ( field.type === null ) {
-      throw(new Error("[INTERNAL] Unresolved type in "+field.name+": "+field.fieldType));
+    var fd = goog.fieldDescriptorProto,
+        fo = goog.fieldOptions;
+    if ( field[fd.TYPE] === null ) {
+      throw(new Error("[INTERNAL] Unresolved type in "+field[fd.NAME]+": "+field.fieldType));
     }
     if (value === null || value === undefined || (field.repeated && (!value || !value.length) )) return buffer; // Optional omitted
 
@@ -927,11 +974,11 @@ var encoders = {
     try {
       if ( field.repeated ) {
         var i;
-        if (field.options && field.options.packed) {
+        if (field[fd.OPTIONS] && field[fd.OPTIONS][fo.PACKED]) {
           // "All of the elements of the field are packed into a single key-value pair with wire type 2
           // (length-delimited). Each element is encoded the same way it would be normally, except without a
           // tag preceding it."
-          buffer.writeVarint32((field.number << 3) | Protob.WIRE_TYPES.LDELIM);
+          buffer.writeVarint32((field[fd.NUMBER] << 3) | Protob.WIRE_TYPES.LDELIM);
           buffer.ensureCapacity(buffer.offset += 1); // We do not know the length yet, so let's assume a varint of length 1
           var start = buffer.offset; // Remember where the contents begin
           value.forEach(function(v) { encoder(field, v, buffer); });
@@ -949,16 +996,16 @@ var encoders = {
           // "If your message definition has repeated elements (without the [packed=true] option), the encoded
           // message has zero or more key-value pairs with the same tag number"
           value.forEach(function(val){
-            buffer.writeVarint32((field.number << 3) | Protob.TYPES[field.fieldType].wireType);
+            buffer.writeVarint32((field[fd.NUMBER] << 3) | Protob.TYPES[field.fieldType].wireType);
             encoder(field, val, buffer);
           });
         }
       } else {
-        buffer.writeVarint32((field.number << 3) | Protob.TYPES[field.fieldType].wireType);
+        buffer.writeVarint32((field[fd.NUMBER] << 3) | Protob.TYPES[field.fieldType].wireType);
         encoder(field, value, buffer);
       }
     } catch(e) {
-       throw(new Error("Illegal value for "+field.name+": "+value+" ("+e+")"));
+       throw(new Error("Illegal value for "+field[fd.NAME]+": "+value+" ("+e+")"));
     }
     return buffer;
   }
@@ -966,14 +1013,175 @@ var encoders = {
 
 exports.encoders = encoders;
 
-},{"../enum":7,"../protob":10}],7:[function(require,module,exports){
+},{"../enum":8,"../protob":11,"./google-protos-defn":7}],7:[function(require,module,exports){
+module.exports = {
+  fileDescriptorSet: {
+    FILE: 1
+  },
+  fileDescriptorProto: {
+    NAME: 1,
+    PACKAGE: 2,
+    DEPENDENCY: 3,
+    MESSAGE_TYPE: 4,
+    ENUM_TYPE: 5,
+    SERVICE: 6,
+    EXTENSION: 7,
+    OPTIONS: 8,
+    SOURCE_CODE_INFO: 9
+  },
+  descriptorProto: {
+    NAME: 1,
+    DOC: 8,
+    FIELD: 2,
+    EXTENSION: 6,
+    NESTED_TYPE: 3,
+    ENUM_TYPE: 4,
+
+    extensionRange: {
+      START: 1,
+      END: 2
+    },
+    EXTENSION_RANGE: 5,
+    OPTIONS: 7
+  },
+  fieldDescriptorProto: {
+    type: {
+      TYPE_DOUBLE: 1,
+      TYPE_FLOAT: 2,
+      TYPE_INT64: 3,
+      TYPE_UINT64: 4,
+      TYPE_INT32: 5,
+      TYPE_FIXED64: 6,
+      TYPE_FIXED32: 7,
+      TYPE_BOOL: 8,
+      TYPE_STRING: 9,
+      TYPE_GROUP: 10,
+      TYPE_MESSAGE: 11,
+      TYPE_BYTES: 12,
+      TYPE_UINT32: 13,
+      TYPE_ENUM: 14,
+      TYPE_SFIXED32: 15,
+      TYPE_SFIXED64: 16,
+      TYPE_SINT32: 17,
+      TYPE_SINT64: 18
+    },
+    label: {
+      LABEL_OPTIONAL: 1,
+      LABEL_REQUIRED: 2,
+      LABEL_REPEATED: 3
+    },
+    NAME: 1,
+    DOC: 9,
+    NUMBER: 3,
+    LABEL: 4,
+    TYPE: 5,
+    TYPE_NAME: 6,
+    EXTENDEE: 2,
+    DEFAULT_VALUE: 7,
+    OPTIONS: 8
+  },
+  enumDescriptorProto: {
+    NAME: 1,
+    DOC: 4,
+    VALUE: 2,
+    OPTIONS: 3
+  },
+  enumValueDescriptorProto: {
+    NAME: 1,
+    DOC: 4,
+    NUMBER: 2,
+    OPTIONS: 3
+  },
+  serviceDescriptorProto: {
+    NAME: 1,
+    METHOD: 2,
+    DOC: 4,
+    OPTIONS: 3
+  },
+  methodDescriptorProto: {
+    NAME: 1,
+    DOC: 5,
+    INPUT_TYPE: 2,
+    OUTPUT_TYPE: 3,
+    OPTIONS: 4
+  },
+  fileOptions: {
+    JAVA_PACKAGE: 1,
+    JAVA_OUTER_CLASSNAME: 8,
+    JAVA_MULTIPLE_FILES: 10,
+    GO_PACKAGE: 11,
+    JAVA_GENERATE_EQUALS_AND_HASH: 20,
+    optimizeMode: {
+      SPEED: 1,
+      CODE_SIZE: 2,
+      LITE_RUNTIME: 3
+    },
+    OPTIMIZE_FOR: 9,
+    CC_GENERIC_SERVICES: 16,
+    JAVA_GENERIC_SERVICES: 17,
+    PY_GENERIC_SERVICES: 18,
+    UNINTERPRETED_OPTION: 999
+  },
+  messageOptions: {
+    MESSAGE_SET_WIRE_FORMAT: 1,
+    NO_STANDARD_DESCRIPTOR_ACCESSOR: 2,
+    UNINTERPRETED_OPTION: 999
+  },
+  fieldOptions: {
+    CTYPE: 1,
+    ctype: {
+      STRING: 0,
+      CORD: 1,
+      STRING_PIECE: 2
+    },
+    PACKED: 2,
+    DEPRECATED: 3,
+    EXPERIMENTAL_MAP_KEY: 9,
+    UNINTERPRETED_OPTION: 999
+  },
+  enumOptions: {
+    UNINTERPRETED_OPTION: 999
+  },
+  enumValueOptions: {
+    UNINTERPRETED_OPTION: 999
+  },
+  serviceOptions: {
+    UNINTERPRETED_OPTION: 999
+  },
+  methodOptions: {
+    UNINTERPRETED_OPTION: 999
+  },
+  uninterpretedOption: {
+    namePart: {
+      NAME_PART: 1,
+      IS_EXTENSION: 2
+    },
+    NAME: 2,
+    IDENTIFIER_VALUE: 3,
+    POSITIVE_IN_VALUE: 4,
+    NEGATIVE_INT_VALUE: 5,
+    DOUBLE_VALUE: 6,
+    STRING_VALUE: 7,
+    AGGREGATE_VALUE: 8
+  },
+  sourceCodeInfo: {
+    LOCATION: 1,
+    location: {
+      PATH: 1,
+      SPAN: 2
+    }
+  }
+};
+
+},{}],8:[function(require,module,exports){
 /**
  * @module protob/enum
  * @exports Enum
  * @exports EnumValue
  */
-var ENUM = "ENUM";
-var registry = require('./registry');
+var ENUM = "ENUM",
+    registry = require('./registry'),
+    goog = require('./compiler/google-protos-defn');
 
 /**
  * Creates a new Enum as a container for enums
@@ -1019,11 +1227,13 @@ function EnumValue(name, number, options) {
  * @protected
  */
 Enum.prototype.updateDescriptor = function(desc) {
+  var enumDescriptor = goog.enumDescriptorProto;
+
   // if( !Object.isFrozen(desc) ) { Object.freeze(desc); }
   /** @member {object} - The protobuf descriptor */
   this.descriptor = desc;
   /** @member {object} - The protocol buffer name for this enum */
-  this.clazz = desc[1] || desc.name;
+  this.clazz = desc[enumDescriptor.NAME];
   /** @member {object} - The protocol buffer full name for this Enum */
   this.fullName = this.parent + "." + this.clazz;
   this.reset();
@@ -1043,7 +1253,7 @@ Enum.prototype.finalize = function() {
  * @public
  */
 Enum.prototype.options = function() {
-  return this.descriptor.options;
+  return this.descriptor[goog.enumDescriptorProto.OPTIONS];
 };
 
 /*this.clazz;
@@ -1054,17 +1264,20 @@ Enum.prototype.options = function() {
  * @protected
  */
 Enum.prototype.reset = function() {
+  var enumDescriptor = goog.enumDescriptorProto,
+      enumValueDescriptor = goog.enumValueDescriptorProto;
+
   this.v   = {};
   this.valuesByNumber = {};
   var self = this,
-      val = this.descriptor[2] || this.descriptor.value;
+      values = this.descriptor[enumDescriptor.VALUE];
 
-  if ( !Array.isArray(val) ) { return; }
+  if ( !Array.isArray(values) ) { return; }
 
-  val.forEach(function(v) {
-    var val = new EnumValue(v[1] || v.name, v[2] || v.number, v[3] || v.options);
-    self.v[v[1] || v.name]     = val;
-    self.valuesByNumber[v[2] || v.number] = val;
+  values.forEach(function(v) {
+    var val = new EnumValue(v[enumValueDescriptor.NAME], v[enumValueDescriptor.NUMBER], v[enumValueDescriptor.OPTIONS]);
+    self.v[v[enumValueDescriptor.NAME]] = val;
+    self.valuesByNumber[v[enumValueDescriptor.NUMBER]] = val;
   });
 };
 
@@ -1088,6 +1301,7 @@ Enum.prototype.byName  = function(name) { return this.v[name];  };
  * @return {Protob.EnumValue} - The found value or undefined
  */
 Enum.prototype.fetch = function(nameOrValue) {
+  if(nameOrValue instanceof EnumValue) return nameOrValue;
   return this.byName(nameOrValue) || this.byValue(nameOrValue);
 };
 
@@ -1136,819 +1350,815 @@ Enum.prototype.enumValues = function(){
 exports.Enum = Enum;
 exports.EnumValue = EnumValue;
 
-},{"./registry":11}],8:[function(require,module,exports){
+},{"./compiler/google-protos-defn":7,"./registry":12}],9:[function(require,module,exports){
 module.exports = [
   {
-    "name": "google/protobuf/descriptor.proto",
-    "package": "google.protobuf",
-    "message_type": [
+    "1": "google/protobuf/descriptor.proto",
+    "2": "google.protobuf",
+    "4": [
       {
-        "name": "FileDescriptorSet",
-        "field": [
+        "1": "FileDescriptorSet",
+        "2": [
           {
-            "name": "file",
-            "number": 1,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.FileDescriptorProto"
+            "1": "file",
+            "3": 1,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.FileDescriptorProto"
           }
         ]
       },
       {
-        "name": "FileDescriptorProto",
-        "field": [
+        "1": "FileDescriptorProto",
+        "2": [
           {
-            "name": "name",
-            "number": 1,
-            "label": 1,
-            "type": 9
+            "1": "name",
+            "3": 1,
+            "4": 1,
+            "5": 9
           },
           {
-            "name": "package",
-            "number": 2,
-            "label": 1,
-            "type": 9
+            "1": "package",
+            "3": 2,
+            "4": 1,
+            "5": 9
           },
           {
-            "name": "dependency",
-            "number": 3,
-            "label": 3,
-            "type": 9
+            "1": "dependency",
+            "3": 3,
+            "4": 3,
+            "5": 9
           },
           {
-            "name": "message_type",
-            "number": 4,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.DescriptorProto"
+            "1": "message_type",
+            "3": 4,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.DescriptorProto"
           },
           {
-            "name": "enum_type",
-            "number": 5,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.EnumDescriptorProto"
+            "1": "enum_type",
+            "3": 5,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.EnumDescriptorProto"
           },
           {
-            "name": "service",
-            "number": 6,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.ServiceDescriptorProto"
+            "1": "service",
+            "3": 6,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.ServiceDescriptorProto"
           },
           {
-            "name": "extension",
-            "number": 7,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.FieldDescriptorProto"
+            "1": "extension",
+            "3": 7,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.FieldDescriptorProto"
           },
           {
-            "name": "options",
-            "number": 8,
-            "label": 1,
-            "type": 11,
-            "type_name": ".google.protobuf.FileOptions"
+            "1": "options",
+            "3": 8,
+            "4": 1,
+            "5": 11,
+            "6": ".google.protobuf.FileOptions"
           },
           {
-            "name": "source_code_info",
-            "number": 9,
-            "label": 1,
-            "type": 11,
-            "type_name": ".google.protobuf.SourceCodeInfo"
+            "1": "source_code_info",
+            "3": 9,
+            "4": 1,
+            "5": 11,
+            "6": ".google.protobuf.SourceCodeInfo"
           }
         ]
       },
       {
-        "name": "DescriptorProto",
-        "field": [
+        "1": "DescriptorProto",
+        "2": [
           {
-            "name": "name",
-            "number": 1,
-            "label": 1,
-            "type": 9
+            "1": "name",
+            "3": 1,
+            "4": 1,
+            "5": 9
           },
           {
-            "name": "doc",
-            "number": 8,
-            "label": 1,
-            "type": 9
+            "1": "doc",
+            "3": 8,
+            "4": 1,
+            "5": 9
           },
           {
-            "name": "field",
-            "number": 2,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.FieldDescriptorProto"
+            "1": "field",
+            "3": 2,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.FieldDescriptorProto"
           },
           {
-            "name": "extension",
-            "number": 6,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.FieldDescriptorProto"
+            "1": "extension",
+            "3": 6,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.FieldDescriptorProto"
           },
           {
-            "name": "nested_type",
-            "number": 3,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.DescriptorProto"
+            "1": "nested_type",
+            "3": 3,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.DescriptorProto"
           },
           {
-            "name": "enum_type",
-            "number": 4,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.EnumDescriptorProto"
+            "1": "enum_type",
+            "3": 4,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.EnumDescriptorProto"
           },
           {
-            "name": "extension_range",
-            "number": 5,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.DescriptorProto.ExtensionRange"
+            "1": "extension_range",
+            "3": 5,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.DescriptorProto.ExtensionRange"
           },
           {
-            "name": "options",
-            "number": 7,
-            "label": 1,
-            "type": 11,
-            "type_name": ".google.protobuf.MessageOptions"
+            "1": "options",
+            "3": 7,
+            "4": 1,
+            "5": 11,
+            "6": ".google.protobuf.MessageOptions"
           }
         ],
-        "nested_type": [
+        "3": [
           {
-            "name": "ExtensionRange",
-            "field": [
+            "1": "ExtensionRange",
+            "2": [
               {
-                "name": "start",
-                "number": 1,
-                "label": 1,
-                "type": 5
+                "1": "start",
+                "3": 1,
+                "4": 1,
+                "5": 5
               },
               {
-                "name": "end",
-                "number": 2,
-                "label": 1,
-                "type": 5
+                "1": "end",
+                "3": 2,
+                "4": 1,
+                "5": 5
               }
             ]
           }
         ]
       },
       {
-        "name": "FieldDescriptorProto",
-        "field": [
+        "1": "FieldDescriptorProto",
+        "2": [
           {
-            "name": "name",
-            "number": 1,
-            "label": 1,
-            "type": 9
+            "1": "name",
+            "3": 1,
+            "4": 1,
+            "5": 9
           },
           {
-            "name": "doc",
-            "number": 9,
-            "label": 1,
-            "type": 9
+            "1": "doc",
+            "3": 9,
+            "4": 1,
+            "5": 9
           },
           {
-            "name": "number",
-            "number": 3,
-            "label": 1,
-            "type": 5
+            "1": "number",
+            "3": 3,
+            "4": 1,
+            "5": 5
           },
           {
-            "name": "label",
-            "number": 4,
-            "label": 1,
-            "type": 14,
-            "type_name": ".google.protobuf.FieldDescriptorProto.Label"
+            "1": "label",
+            "3": 4,
+            "4": 1,
+            "5": 14,
+            "6": ".google.protobuf.FieldDescriptorProto.Label"
           },
           {
-            "name": "type",
-            "number": 5,
-            "label": 1,
-            "type": 14,
-            "type_name": ".google.protobuf.FieldDescriptorProto.Type"
+            "1": "type",
+            "3": 5,
+            "4": 1,
+            "5": 14,
+            "6": ".google.protobuf.FieldDescriptorProto.Type"
           },
           {
-            "name": "type_name",
-            "number": 6,
-            "label": 1,
-            "type": 9
+            "1": "type_name",
+            "3": 6,
+            "4": 1,
+            "5": 9
           },
           {
-            "name": "extendee",
-            "number": 2,
-            "label": 1,
-            "type": 9
+            "1": "extendee",
+            "3": 2,
+            "4": 1,
+            "5": 9
           },
           {
-            "name": "default_value",
-            "number": 7,
-            "label": 1,
-            "type": 9
+            "1": "default_value",
+            "3": 7,
+            "4": 1,
+            "5": 9
           },
           {
-            "name": "options",
-            "number": 8,
-            "label": 1,
-            "type": 11,
-            "type_name": ".google.protobuf.FieldOptions"
+            "1": "options",
+            "3": 8,
+            "4": 1,
+            "5": 11,
+            "6": ".google.protobuf.FieldOptions"
           }
         ],
-        "enum_type": [
+        "4": [
           {
-            "name": "Type",
-            "value": [
+            "1": "Type",
+            "2": [
               {
-                "name": "TYPE_DOUBLE",
-                "number": 1
+                "1": "TYPE_DOUBLE",
+                "2": 1
               },
               {
-                "name": "TYPE_FLOAT",
-                "number": 2
+                "1": "TYPE_FLOAT",
+                "2": 2
               },
               {
-                "name": "TYPE_INT64",
-                "number": 3
+                "1": "TYPE_INT64",
+                "2": 3
               },
               {
-                "name": "TYPE_UINT64",
-                "number": 4
+                "1": "TYPE_UINT64",
+                "2": 4
               },
               {
-                "name": "TYPE_INT32",
-                "number": 5
+                "1": "TYPE_INT32",
+                "2": 5
               },
               {
-                "name": "TYPE_FIXED64",
-                "number": 6
+                "1": "TYPE_FIXED64",
+                "2": 6
               },
               {
-                "name": "TYPE_FIXED32",
-                "number": 7
+                "1": "TYPE_FIXED32",
+                "2": 7
               },
               {
-                "name": "TYPE_BOOL",
-                "number": 8
+                "1": "TYPE_BOOL",
+                "2": 8
               },
               {
-                "name": "TYPE_STRING",
-                "number": 9
+                "1": "TYPE_STRING",
+                "2": 9
               },
               {
-                "name": "TYPE_GROUP",
-                "number": 10
+                "1": "TYPE_GROUP",
+                "2": 10
               },
               {
-                "name": "TYPE_MESSAGE",
-                "number": 11
+                "1": "TYPE_MESSAGE",
+                "2": 11
               },
               {
-                "name": "TYPE_BYTES",
-                "number": 12
+                "1": "TYPE_BYTES",
+                "2": 12
               },
               {
-                "name": "TYPE_UINT32",
-                "number": 13
+                "1": "TYPE_UINT32",
+                "2": 13
               },
               {
-                "name": "TYPE_ENUM",
-                "number": 14
+                "1": "TYPE_ENUM",
+                "2": 14
               },
               {
-                "name": "TYPE_SFIXED32",
-                "number": 15
+                "1": "TYPE_SFIXED32",
+                "2": 15
               },
               {
-                "name": "TYPE_SFIXED64",
-                "number": 16
+                "1": "TYPE_SFIXED64",
+                "2": 16
               },
               {
-                "name": "TYPE_SINT32",
-                "number": 17
+                "1": "TYPE_SINT32",
+                "2": 17
               },
               {
-                "name": "TYPE_SINT64",
-                "number": 18
+                "1": "TYPE_SINT64",
+                "2": 18
               }
             ]
           },
           {
-            "name": "Label",
-            "value": [
+            "1": "Label",
+            "2": [
               {
-                "name": "LABEL_OPTIONAL",
-                "number": 1
+                "1": "LABEL_OPTIONAL",
+                "2": 1
               },
               {
-                "name": "LABEL_REQUIRED",
-                "number": 2
+                "1": "LABEL_REQUIRED",
+                "2": 2
               },
               {
-                "name": "LABEL_REPEATED",
-                "number": 3
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "name": "EnumDescriptorProto",
-        "field": [
-          {
-            "name": "name",
-            "number": 1,
-            "label": 1,
-            "type": 9
-          },
-          {
-            "name": "doc",
-            "number": 4,
-            "label": 1,
-            "type": 9
-          },
-          {
-            "name": "value",
-            "number": 2,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.EnumValueDescriptorProto"
-          },
-          {
-            "name": "options",
-            "number": 3,
-            "label": 1,
-            "type": 11,
-            "type_name": ".google.protobuf.EnumOptions"
-          }
-        ]
-      },
-      {
-        "name": "EnumValueDescriptorProto",
-        "field": [
-          {
-            "name": "name",
-            "number": 1,
-            "label": 1,
-            "type": 9
-          },
-          {
-            "name": "doc",
-            "number": 4,
-            "label": 1,
-            "type": 9
-          },
-          {
-            "name": "number",
-            "number": 2,
-            "label": 1,
-            "type": 5
-          },
-          {
-            "name": "options",
-            "number": 3,
-            "label": 1,
-            "type": 11,
-            "type_name": ".google.protobuf.EnumValueOptions"
-          }
-        ]
-      },
-      {
-        "name": "ServiceDescriptorProto",
-        "field": [
-          {
-            "name": "name",
-            "number": 1,
-            "label": 1,
-            "type": 9
-          },
-          {
-            "name": "method",
-            "number": 2,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.MethodDescriptorProto"
-          },
-          {
-            "name": "doc",
-            "number": 4,
-            "label": 1,
-            "type": 9
-          },
-          {
-            "name": "options",
-            "number": 3,
-            "label": 1,
-            "type": 11,
-            "type_name": ".google.protobuf.ServiceOptions"
-          }
-        ]
-      },
-      {
-        "name": "MethodDescriptorProto",
-        "field": [
-          {
-            "name": "name",
-            "number": 1,
-            "label": 1,
-            "type": 9
-          },
-          {
-            "name": "doc",
-            "number": 5,
-            "label": 1,
-            "type": 9
-          },
-          {
-            "name": "input_type",
-            "number": 2,
-            "label": 1,
-            "type": 9
-          },
-          {
-            "name": "output_type",
-            "number": 3,
-            "label": 1,
-            "type": 9
-          },
-          {
-            "name": "options",
-            "number": 4,
-            "label": 1,
-            "type": 11,
-            "type_name": ".google.protobuf.MethodOptions"
-          }
-        ]
-      },
-      {
-        "name": "FileOptions",
-        "field": [
-          {
-            "name": "java_package",
-            "number": 1,
-            "label": 1,
-            "type": 9
-          },
-          {
-            "name": "java_outer_classname",
-            "number": 8,
-            "label": 1,
-            "type": 9
-          },
-          {
-            "name": "java_multiple_files",
-            "number": 10,
-            "label": 1,
-            "type": 8,
-            "default_value": false
-          },
-          {
-            "name": "java_generate_equals_and_hash",
-            "number": 20,
-            "label": 1,
-            "type": 8,
-            "default_value": false
-          },
-          {
-            "name": "optimize_for",
-            "number": 9,
-            "label": 1,
-            "type": 14,
-            "type_name": ".google.protobuf.FileOptions.OptimizeMode",
-            "default_value": "SPEED"
-          },
-          {
-            "name": "cc_generic_services",
-            "number": 16,
-            "label": 1,
-            "type": 8,
-            "default_value": false
-          },
-          {
-            "name": "java_generic_services",
-            "number": 17,
-            "label": 1,
-            "type": 8,
-            "default_value": false
-          },
-          {
-            "name": "py_generic_services",
-            "number": 18,
-            "label": 1,
-            "type": 8,
-            "default_value": false
-          },
-          {
-            "name": "uninterpreted_option",
-            "number": 999,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.UninterpretedOption"
-          }
-        ],
-        "enum_type": [
-          {
-            "name": "OptimizeMode",
-            "value": [
-              {
-                "name": "SPEED",
-                "number": 1
-              },
-              {
-                "name": "CODE_SIZE",
-                "number": 2
-              },
-              {
-                "name": "LITE_RUNTIME",
-                "number": 3
-              }
-            ]
-          }
-        ],
-        "extension_range": [
-          {
-            "start": 1000,
-            "end": 536870912
-          }
-        ]
-      },
-      {
-        "name": "MessageOptions",
-        "field": [
-          {
-            "name": "message_set_wire_format",
-            "number": 1,
-            "label": 1,
-            "type": 8,
-            "default_value": false
-          },
-          {
-            "name": "no_standard_descriptor_accessor",
-            "number": 2,
-            "label": 1,
-            "type": 8,
-            "default_value": false
-          },
-          {
-            "name": "uninterpreted_option",
-            "number": 999,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.UninterpretedOption"
-          }
-        ],
-        "extension_range": [
-          {
-            "start": 1000,
-            "end": 536870912
-          }
-        ]
-      },
-      {
-        "name": "FieldOptions",
-        "field": [
-          {
-            "name": "ctype",
-            "number": 1,
-            "label": 1,
-            "type": 14,
-            "type_name": ".google.protobuf.FieldOptions.CType",
-            "default_value": "STRING"
-          },
-          {
-            "name": "packed",
-            "number": 2,
-            "label": 1,
-            "type": 8
-          },
-          {
-            "name": "deprecated",
-            "number": 3,
-            "label": 1,
-            "type": 8,
-            "default_value": false
-          },
-          {
-            "name": "experimental_map_key",
-            "number": 9,
-            "label": 1,
-            "type": 9
-          },
-          {
-            "name": "uninterpreted_option",
-            "number": 999,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.UninterpretedOption"
-          }
-        ],
-        "enum_type": [
-          {
-            "name": "CType",
-            "value": [
-              {
-                "name": "STRING",
-                "number": 0
-              },
-              {
-                "name": "CORD",
-                "number": 1
-              },
-              {
-                "name": "STRING_PIECE",
-                "number": 2
-              }
-            ]
-          }
-        ],
-        "extension_range": [
-          {
-            "start": 1000,
-            "end": 536870912
-          }
-        ]
-      },
-      {
-        "name": "EnumOptions",
-        "field": [
-          {
-            "name": "uninterpreted_option",
-            "number": 999,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.UninterpretedOption"
-          }
-        ],
-        "extension_range": [
-          {
-            "start": 1000,
-            "end": 536870912
-          }
-        ]
-      },
-      {
-        "name": "EnumValueOptions",
-        "field": [
-          {
-            "name": "uninterpreted_option",
-            "number": 999,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.UninterpretedOption"
-          }
-        ],
-        "extension_range": [
-          {
-            "start": 1000,
-            "end": 536870912
-          }
-        ]
-      },
-      {
-        "name": "ServiceOptions",
-        "field": [
-          {
-            "name": "uninterpreted_option",
-            "number": 999,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.UninterpretedOption"
-          }
-        ],
-        "extension_range": [
-          {
-            "start": 1000,
-            "end": 536870912
-          }
-        ]
-      },
-      {
-        "name": "MethodOptions",
-        "field": [
-          {
-            "name": "uninterpreted_option",
-            "number": 999,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.UninterpretedOption"
-          }
-        ],
-        "extension_range": [
-          {
-            "start": 1000,
-            "end": 536870912
-          }
-        ]
-      },
-      {
-        "name": "UninterpretedOption",
-        "field": [
-          {
-            "name": "name",
-            "number": 2,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.UninterpretedOption.NamePart"
-          },
-          {
-            "name": "identifier_value",
-            "number": 3,
-            "label": 1,
-            "type": 9
-          },
-          {
-            "name": "positive_int_value",
-            "number": 4,
-            "label": 1,
-            "type": 4
-          },
-          {
-            "name": "negative_int_value",
-            "number": 5,
-            "label": 1,
-            "type": 3
-          },
-          {
-            "name": "double_value",
-            "number": 6,
-            "label": 1,
-            "type": 1
-          },
-          {
-            "name": "string_value",
-            "number": 7,
-            "label": 1,
-            "type": 12
-          },
-          {
-            "name": "aggregate_value",
-            "number": 8,
-            "label": 1,
-            "type": 9
-          }
-        ],
-        "nested_type": [
-          {
-            "name": "NamePart",
-            "field": [
-              {
-                "name": "name_part",
-                "number": 1,
-                "label": 2,
-                "type": 9
-              },
-              {
-                "name": "is_extension",
-                "number": 2,
-                "label": 2,
-                "type": 8
+                "1": "LABEL_REPEATED",
+                "2": 3
               }
             ]
           }
         ]
       },
       {
-        "name": "SourceCodeInfo",
-        "field": [
+        "1": "EnumDescriptorProto",
+        "2": [
           {
-            "name": "location",
-            "number": 1,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.SourceCodeInfo.Location"
+            "1": "name",
+            "3": 1,
+            "4": 1,
+            "5": 9
+          },
+          {
+            "1": "doc",
+            "3": 4,
+            "4": 1,
+            "5": 9
+          },
+          {
+            "1": "value",
+            "3": 2,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.EnumValueDescriptorProto"
+          },
+          {
+            "1": "options",
+            "3": 3,
+            "4": 1,
+            "5": 11,
+            "6": ".google.protobuf.EnumOptions"
+          }
+        ]
+      },
+      {
+        "1": "EnumValueDescriptorProto",
+        "2": [
+          {
+            "1": "name",
+            "3": 1,
+            "4": 1,
+            "5": 9
+          },
+          {
+            "1": "doc",
+            "3": 4,
+            "4": 1,
+            "5": 9
+          },
+          {
+            "1": "number",
+            "3": 2,
+            "4": 1,
+            "5": 5
+          },
+          {
+            "1": "options",
+            "3": 3,
+            "4": 1,
+            "5": 11,
+            "6": ".google.protobuf.EnumValueOptions"
+          }
+        ]
+      },
+      {
+        "1": "ServiceDescriptorProto",
+        "2": [
+          {
+            "1": "name",
+            "3": 1,
+            "4": 1,
+            "5": 9
+          },
+          {
+            "1": "method",
+            "3": 2,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.MethodDescriptorProto"
+          },
+          {
+            "1": "doc",
+            "3": 4,
+            "4": 1,
+            "5": 9
+          },
+          {
+            "1": "options",
+            "3": 3,
+            "4": 1,
+            "5": 11,
+            "6": ".google.protobuf.ServiceOptions"
+          }
+        ]
+      },
+      {
+        "1": "MethodDescriptorProto",
+        "2": [
+          {
+            "1": "name",
+            "3": 1,
+            "4": 1,
+            "5": 9
+          },
+          {
+            "1": "doc",
+            "3": 5,
+            "4": 1,
+            "5": 9
+          },
+          {
+            "1": "input_type",
+            "3": 2,
+            "4": 1,
+            "5": 9
+          },
+          {
+            "1": "output_type",
+            "3": 3,
+            "4": 1,
+            "5": 9
+          },
+          {
+            "1": "options",
+            "3": 4,
+            "4": 1,
+            "5": 11,
+            "6": ".google.protobuf.MethodOptions"
+          }
+        ]
+      },
+      {
+        "1": "FileOptions",
+        "2": [
+          {
+            "1": "java_package",
+            "3": 1,
+            "4": 1,
+            "5": 9
+          },
+          {
+            "1": "java_outer_classname",
+            "3": 8,
+            "4": 1,
+            "5": 9
+          },
+          {
+            "1": "java_multiple_files",
+            "3": 10,
+            "4": 1,
+            "5": 8,
+            "7": false
+          },
+          {
+            "1": "java_generate_equals_and_hash",
+            "3": 20,
+            "4": 1,
+            "5": 8,
+            "7": false
+          },
+          {
+            "1": "optimize_for",
+            "3": 9,
+            "4": 1,
+            "5": 14,
+            "6": ".google.protobuf.FileOptions.OptimizeMode",
+            "7": "SPEED"
+          },
+          {
+            "1": "cc_generic_services",
+            "3": 16,
+            "4": 1,
+            "5": 8,
+            "7": false
+          },
+          {
+            "1": "java_generic_services",
+            "3": 17,
+            "4": 1,
+            "5": 8,
+            "7": false
+          },
+          {
+            "1": "py_generic_services",
+            "3": 18,
+            "4": 1,
+            "5": 8,
+            "7": false
+          },
+          {
+            "1": "uninterpreted_option",
+            "3": 999,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.UninterpretedOption"
           }
         ],
-        "nested_type": [
+        "4": [
           {
-            "name": "Location",
-            "field": [
+            "1": "OptimizeMode",
+            "2": [
               {
-                "name": "path",
-                "number": 1,
-                "label": 3,
-                "type": 5,
-                "options": {
-                  "ctype": "STRING",
-                  "deprecated": false,
-                  "lazy": false,
-                  "weak": false,
-                  "packed": true
+                "1": "SPEED",
+                "2": 1
+              },
+              {
+                "1": "CODE_SIZE",
+                "2": 2
+              },
+              {
+                "1": "LITE_RUNTIME",
+                "2": 3
+              }
+            ]
+          }
+        ],
+        "5": [
+          {
+            "1": 1000,
+            "2": 536870912
+          }
+        ]
+      },
+      {
+        "1": "MessageOptions",
+        "2": [
+          {
+            "1": "message_set_wire_format",
+            "3": 1,
+            "4": 1,
+            "5": 8,
+            "7": false
+          },
+          {
+            "1": "no_standard_descriptor_accessor",
+            "3": 2,
+            "4": 1,
+            "5": 8,
+            "7": false
+          },
+          {
+            "1": "uninterpreted_option",
+            "3": 999,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.UninterpretedOption"
+          }
+        ],
+        "5": [
+          {
+            "1": 1000,
+            "2": 536870912
+          }
+        ]
+      },
+      {
+        "1": "FieldOptions",
+        "2": [
+          {
+            "1": "ctype",
+            "3": 1,
+            "4": 1,
+            "5": 14,
+            "6": ".google.protobuf.FieldOptions.CType",
+            "7": "STRING"
+          },
+          {
+            "1": "packed",
+            "3": 2,
+            "4": 1,
+            "5": 8
+          },
+          {
+            "1": "deprecated",
+            "3": 3,
+            "4": 1,
+            "5": 8,
+            "7": false
+          },
+          {
+            "1": "experimental_map_key",
+            "3": 9,
+            "4": 1,
+            "5": 9
+          },
+          {
+            "1": "uninterpreted_option",
+            "3": 999,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.UninterpretedOption"
+          }
+        ],
+        "4": [
+          {
+            "1": "CType",
+            "2": [
+              {
+                "1": "STRING",
+                "2": 0
+              },
+              {
+                "1": "CORD",
+                "2": 1
+              },
+              {
+                "1": "STRING_PIECE",
+                "2": 2
+              }
+            ]
+          }
+        ],
+        "5": [
+          {
+            "1": 1000,
+            "2": 536870912
+          }
+        ]
+      },
+      {
+        "1": "EnumOptions",
+        "2": [
+          {
+            "1": "uninterpreted_option",
+            "3": 999,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.UninterpretedOption"
+          }
+        ],
+        "5": [
+          {
+            "1": 1000,
+            "2": 536870912
+          }
+        ]
+      },
+      {
+        "1": "EnumValueOptions",
+        "2": [
+          {
+            "1": "uninterpreted_option",
+            "3": 999,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.UninterpretedOption"
+          }
+        ],
+        "5": [
+          {
+            "1": 1000,
+            "2": 536870912
+          }
+        ]
+      },
+      {
+        "1": "ServiceOptions",
+        "2": [
+          {
+            "1": "uninterpreted_option",
+            "3": 999,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.UninterpretedOption"
+          }
+        ],
+        "5": [
+          {
+            "1": 1000,
+            "2": 536870912
+          }
+        ]
+      },
+      {
+        "1": "MethodOptions",
+        "2": [
+          {
+            "1": "uninterpreted_option",
+            "3": 999,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.UninterpretedOption"
+          }
+        ],
+        "5": [
+          {
+            "1": 1000,
+            "2": 536870912
+          }
+        ]
+      },
+      {
+        "1": "UninterpretedOption",
+        "2": [
+          {
+            "1": "name",
+            "3": 2,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.UninterpretedOption.NamePart"
+          },
+          {
+            "1": "identifier_value",
+            "3": 3,
+            "4": 1,
+            "5": 9
+          },
+          {
+            "1": "positive_int_value",
+            "3": 4,
+            "4": 1,
+            "5": 4
+          },
+          {
+            "1": "negative_int_value",
+            "3": 5,
+            "4": 1,
+            "5": 3
+          },
+          {
+            "1": "double_value",
+            "3": 6,
+            "4": 1,
+            "5": 1
+          },
+          {
+            "1": "string_value",
+            "3": 7,
+            "4": 1,
+            "5": 12
+          },
+          {
+            "1": "aggregate_value",
+            "3": 8,
+            "4": 1,
+            "5": 9
+          }
+        ],
+        "3": [
+          {
+            "1": "NamePart",
+            "2": [
+              {
+                "1": "name_part",
+                "3": 1,
+                "4": 2,
+                "5": 9
+              },
+              {
+                "1": "is_extension",
+                "3": 2,
+                "4": 2,
+                "5": 8
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "1": "SourceCodeInfo",
+        "2": [
+          {
+            "1": "location",
+            "3": 1,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.SourceCodeInfo.Location"
+          }
+        ],
+        "3": [
+          {
+            "1": "Location",
+            "2": [
+              {
+                "1": "path",
+                "3": 1,
+                "4": 3,
+                "5": 5,
+                "8": {
+                  "1": "STRING",
+                  "2": true,
+                  "3": false
                 }
               },
               {
-                "name": "span",
-                "number": 2,
-                "label": 3,
-                "type": 5,
-                "options": {
-                  "ctype": "STRING",
-                  "deprecated": false,
-                  "lazy": false,
-                  "weak": false,
-                  "packed": true
+                "1": "span",
+                "3": 2,
+                "4": 3,
+                "5": 5,
+                "8": {
+                  "1": "STRING",
+                  "2": true,
+                  "3": false
                 }
               }
             ]
@@ -1956,101 +2166,101 @@ module.exports = [
         ]
       }
     ],
-    "options": {
-      "optimize_for": 1,
-      "java_multiple_files": false,
-      "cc_generic_services": false,
-      "java_generic_services": false,
-      "py_generic_services": false,
-      "java_generate_equals_and_hash": false,
-      "java_package": "com.google.protobuf",
-      "java_outer_classname": "DescriptorProtos"
+    "8": {
+      "1": "com.google.protobuf",
+      "8": "DescriptorProtos",
+      "9": 1,
+      "10": false,
+      "16": false,
+      "17": false,
+      "18": false,
+      "20": false
     }
   },
   {
-    "name": "google/protobuf/compiler/plugin.proto",
-    "package": "google.protobuf.compiler",
-    "dependency": [
+    "1": "google/protobuf/compiler/plugin.proto",
+    "2": "google.protobuf.compiler",
+    "3": [
       "google/protobuf/descriptor.proto"
     ],
-    "message_type": [
+    "4": [
       {
-        "name": "CodeGeneratorRequest",
-        "field": [
+        "1": "CodeGeneratorRequest",
+        "2": [
           {
-            "name": "file_to_generate",
-            "number": 1,
-            "label": 3,
-            "type": 9
+            "1": "file_to_generate",
+            "3": 1,
+            "4": 3,
+            "5": 9
           },
           {
-            "name": "parameter",
-            "number": 2,
-            "label": 1,
-            "type": 9
+            "1": "parameter",
+            "3": 2,
+            "4": 1,
+            "5": 9
           },
           {
-            "name": "proto_file",
-            "number": 15,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.FileDescriptorProto"
+            "1": "proto_file",
+            "3": 15,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.FileDescriptorProto"
           }
         ]
       },
       {
-        "name": "CodeGeneratorResponse",
-        "field": [
+        "1": "CodeGeneratorResponse",
+        "2": [
           {
-            "name": "error",
-            "number": 1,
-            "label": 1,
-            "type": 9
+            "1": "error",
+            "3": 1,
+            "4": 1,
+            "5": 9
           },
           {
-            "name": "file",
-            "number": 15,
-            "label": 3,
-            "type": 11,
-            "type_name": ".google.protobuf.compiler.CodeGeneratorResponse.File"
+            "1": "file",
+            "3": 15,
+            "4": 3,
+            "5": 11,
+            "6": ".google.protobuf.compiler.CodeGeneratorResponse.File"
           }
         ],
-        "nested_type": [
+        "3": [
           {
-            "name": "File",
-            "field": [
+            "1": "File",
+            "2": [
               {
-                "name": "name",
-                "number": 1,
-                "label": 1,
-                "type": 9
+                "1": "name",
+                "3": 1,
+                "4": 1,
+                "5": 9
               },
               {
-                "name": "insertion_point",
-                "number": 2,
-                "label": 1,
-                "type": 9
+                "1": "insertion_point",
+                "3": 2,
+                "4": 1,
+                "5": 9
               },
               {
-                "name": "content",
-                "number": 15,
-                "label": 1,
-                "type": 9
+                "1": "content",
+                "3": 15,
+                "4": 1,
+                "5": 9
               }
             ]
           }
         ]
       }
     ],
-    "options": {
-      "java_package": "com.google.protobuf.compiler",
-      "java_outer_classname": "PluginProtos"
+    "8": {
+      "1": "com.google.protobuf.compiler",
+      "8": "PluginProtos"
     }
   }
 ];
 
 
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 /**
  * Represents a compiled protobuf message
  * Messages are introspective so you can discover the field definitions at runtime
@@ -2058,6 +2268,7 @@ module.exports = [
  */
 var _ = require('underscore'),
     MESSAGE = "MESSAGE",
+    goog = require('./compiler/google-protos-defn'),
     registry = require('./registry'),
     coorcers = require('./compiler/coorcers').coorcers,
     ByteBuffer = require('./protob').ByteBuffer,
@@ -2089,18 +2300,14 @@ var _ = require('underscore'),
  */
 function Message(opts) {
   opts = opts || {};
-  var self = this,
-      fieldAccess = opts.fieldAccess || 'name';
+  var self = this;
 
-  delete opts.fieldAccess;
-
-  this.setDefaults(fieldAccess);
+  this.setDefaults();
 
   // Set the values passed in on this object
   Object.getOwnPropertyNames(opts).forEach(function(name){
-    self[name] = opts[name];
+    self.setf(opts[name], name);
   });
-
 
   // Apply all after initializers on this message
   [Message.afterInitialize, this.constructor.afterInitialize].forEach(function(funcs) {
@@ -2137,13 +2344,14 @@ Message.afterInitialize = [];
  * @protected
  */
 Message.updateDescriptor = function(desc) {
-  var self = this;
+  var self = this,
+      dp = goog.descriptorProto;
   this.descriptor     = desc;
-  this.clazz          = desc[1] || desc.name;
+  this.clazz          = desc[dp.NAME];
   this.extensions     = this.extension;
   this.fullName       = this.parent + "." + this.clazz;
-  this.extensionRange = desc[5] || desc.extension_range;
-  this.options        = desc[7] || desc.options;
+  this.extensionRange = desc[dp.EXTENSION_RANGE];
+  this.options        = desc[dp.OPTIONS];
 
   this.reset    = Message.reset;
   this.reset();
@@ -2159,10 +2367,8 @@ Message.updateDescriptor = function(desc) {
  * @private
  */
 Message.reset = function() {
-  this.fields       = {};
   this.fieldsById   = {};
   this.fieldsByPkg  = {};
-  this.fieldsByName = {};
   this.orderedFields = this.orderedFields;
 };
 
@@ -2172,22 +2378,31 @@ Message.reset = function() {
  * @private
  */
 function expandDescriptors(descriptor) {
-  var TYPE  = registry.lookup('google.protobuf.FieldDescriptorProto.Type');
-  var LABEL = registry.lookup('google.protobuf.FieldDescriptorProto.Label');
-  (descriptor[2] || descriptor.field || []).forEach(function(field) {
-    var label = field[4] || field.label,
-        type  = field[5] || field.type,
-        typeName = field[6] || field.type_name;
+  var TYPE  = registry.lookup('google.protobuf.FieldDescriptorProto.Type'),
+      LABEL = registry.lookup('google.protobuf.FieldDescriptorProto.Label'),
+      dp = goog.descriptorProto,
+      fd = goog.fieldDescriptorProto;
+
+  (descriptor[dp.FIELD] || []).forEach(function(field) {
+    if(field.expandedForProtob) return;
+    var label = field[fd.LABEL],
+        type  = field[fd.TYPE],
+        typeName = field[fd.TYPE_NAME];
+
+    if(typeName) typeName = typeName.replace(/^./, '');
+
+    if(label && label.number) label = label.number;
 
     field.repeated = LABEL.fetch(label) == LABEL.fetch("LABEL_REPEATED");
     field.required = LABEL.fetch(label) == LABEL.fetch("LABEL_REQUIRED");
-    var type = TYPE.fetch(type || typeName);
+    var type = TYPE.fetch(type || type.name);
     field.fieldType = type.name;
     if ( type.name == 'TYPE_MESSAGE' || type.name == 'TYPE_ENUM') {
-      var name = typeName.replace(/^\./, '');
-      field.descriptor = registry.lookup(name).descriptor;
-      field.concrete   = registry.lookup(name);
+      field[fd.TYPE_NAME] = typeName;
+      field.descriptor = registry.lookup(typeName).descriptor;
+      field.concrete   = registry.lookup(typeName);
     }
+    field.expandedForProtob = true;
   });
 };
 
@@ -2196,7 +2411,9 @@ function expandDescriptors(descriptor) {
  * @private
  */
 Message.finalize = function() {
-  var DescriptorProto = registry.lookup('google.protobuf.DescriptorProto');
+  var DescriptorProto = registry.lookup('google.protobuf.DescriptorProto'),
+      dp = goog.descriptorProto,
+      fd = goog.fieldDescriptorProto;
 
   if(!this.descriptor instanceof DescriptorProto) {
     this.descriptor = new DescriptorProto(this.descriptor);
@@ -2205,22 +2422,18 @@ Message.finalize = function() {
   var desc = this.descriptor,
       self = this,
       TYPE  = registry.lookup('google.protobuf.FieldDescriptorProto.Type'),
-      fields = desc[2] || desc.field;
+      fields = desc[dp.FIELD];
 
   this.reset();
 
   if ( fields && Array.isArray(fields) ) {
     fields.forEach(function(field) {
-      var number = field[3] || field.number,
-          name = field[1] || field.name,
-          label = field[4] || field.label,
-          extendee = field[2] || field.extendee;
+      var number = field[fd.NUMBER],
+          name = field[fd.NAME],
+          label = field[fd.LABEL],
+          extendee = field[fd.EXTENDEE];
 
       self.fieldsById[number] = field;
-
-      // This is not that useful because we can have fields with the same name from different packages
-      self.fieldsByName[name] = self.fieldsByName[name] || [];
-      self.fieldsByName[name].push(field);
 
       if(extendee) {
         self.fieldsByPkg[field.pkg] = self.fieldsByPkg[field.pkg] || [];
@@ -2232,8 +2445,8 @@ Message.finalize = function() {
     });
 
     this.orderedFields = fields.sort(function(a, b) { 
-      var _a = a[3] || a.number,
-          _b = b[3] || b.number;
+      var _a = a[fd.NUMBER],
+          _b = b[fd.NUMBER];
       if ( _a < _b) {
         return -1;
       } else if (_a > _b) {
@@ -2262,45 +2475,128 @@ Message.finalize = function() {
 function encodeField(field, value, opts) {
   var self = this,
       TYPE  = registry.lookup('google.protobuf.FieldDescriptorProto.Type'),
+      dp = goog.descriptorProto,
+      fd = goog.fieldDescriptorProto,
       val;
 
   if ( field.fieldType == "TYPE_ENUM" ){
-    var typeName = field.type_name.replace(/^\./, '');
-    val = coorcers[field.fieldType](field.name, registry.lookup(typeName)).call(self, value, opts);
+    var typeName = field[fd.TYPE_NAME].replace(/^\./, '');
+    val = coorcers[field.fieldType](field[fd.NAME], registry.lookup(typeName)).call(self, value, opts);
   } else if ( field.fieldType == "TYPE_MESSAGE" ) {
-    val = coorcers[field.fieldType](field.name, field).call(self, value, opts);
+    val = coorcers[field.fieldType](field[fd.NAME], field).call(self, value, opts);
   } else {
-    val = coorcers[field.fieldType](field.name).call(self, value, opts);
+    val = coorcers[field.fieldType](field[fd.NAME]).call(self, value, opts);
   }
   return val;
 };
 
-Message.prototype.getValue = function(fieldNameOrNumber, pkg) {
-  var field = this.getProtoField(fieldNameOrNumber, pkg);
+/**
+ * Gets the value for a field that has been set
+ * @param {string} fieldNameOrNumber - The field name or number that identifies the field
+ * @param {string} [pkg] - The package name that the field comes from. Use for extensions
+ * @return {any} - The value of this field
+ */
+Message.prototype.getf = function(fieldNameOrNumber, pkg) {
+  if(!registry.googleCompiled) return this[fieldNameOrNumber];
+
+  var field = this.getProtoField(fieldNameOrNumber, pkg),
+      fd = goog.fieldDescriptorProto;
 
   if(!field) return undefined;
 
-  var val = this[field.number] || this[field.name];
-  return val;
-}
+  var val = this[field[fd.NUMBER]];
+  if(!val && field.repeated) this[field[fd.NUMBER]] = [];
+  return this[field[fd.NUMBER]];
+};
 
+/**
+ * Set a proto message field value
+ * Coorces on setting
+ * @param {string} fieldNameOrNumber - The name or number of the field
+ * @param {string} pkg - An optional package name. This can be left blank if the field is not an extension
+ * @param {any} value - The value to set for the field. This should be of the correct type to be coorced for this value.
+ * @return {this} - returns this so that sets can be chained
+ */
+Message.prototype.setf = function(value, fieldNameOrNumber, pkg) {
+  if(!registry.googleCompiled) {
+    // This is just for the initial google things
+    this[fieldNameOrNumber] = value;
+    return this;
+  }
+
+  var field = this.getProtoField(fieldNameOrNumber, pkg),
+      fd = goog.fieldDescriptorProto,
+      self = this;
+
+  if(!field) {
+    // Need to handle unknown fields
+    this[fieldNameOrNumber] = value;
+  } else {
+    var id = field[fd.NUMBER],
+        label = field[fd.LABEL];
+
+    if(label && label.number) label = label.number;
+
+    if(label == fd.label.LABEL_REPEATED) {
+      this[id] = [];
+      if(!value) return;
+      if(!Array.isArray(value)) value = [value];
+
+      value.forEach(function(val) {
+        self[id].push(encodeField.call(self, field, val, {}));
+      });
+
+    } else {
+      this[id] = encodeField.call(this, field, value, {});
+    }
+  }
+
+  return this;
+};
+
+/**
+ * Updates many field values at once. All fields should be within the messages own package and should not be extensions
+ * @param {object} obj - The object to update the values to
+ * @return {this} - return this for method chaining
+ */
+Message.prototype.updateValues = function(obj) {
+  var self = this;
+  Object.keys.forEach(function(key) { self.setf(value, key); });
+  return self;
+};
+
+/**
+ * Checks to see if the field is set
+ * @param {string} fieldNameOrNumber - The field name or number
+ * @param {string} [pkg] - The package name for the field. Should only use for extensions
+ * @return {boolean} - Returns true if the field has been set, even if it is not truthy
+ */
 Message.prototype.isFieldSet = function(fieldNameOrNumber, pkg) {
-  var field = this.getProtoField(fieldNameOrNumber, pkg);
+  var field = this.getProtoField(fieldNameOrNumber, pkg),
+      fd = goog.fieldDescriptorProto;
+
   if(!field) return undefined;
-  return this.hasOwnProperty(field.number) || this.hasOwnProperty(field.name);
+  return this.hasOwnProperty(field[fd.NUMBER]);
 }
 
+/**
+ * fetch the field definition for a field
+ * @private
+ */
 Message.prototype.getProtoField = function(nameOrNumber, pkg) {
   var constructor = this.constructor,
+      fd = goog.fieldDescriptorProto,
       field;
 
+  if(constructor.fieldsById[nameOrNumber]) return constructor.fieldsById[nameOrNumber];
+
   if(pkg) {
+    if(!constructor.fieldsByPkg[pkg]) throw new Error('Package ' + pkg + ' not found for ' + this.constructor.fullName);
     field = constructor.fieldsByPkg[pkg].filter(function(f) {
-      return f.number == nameOrNumber || f.name == nameOrNumber;
+      return f[fd.NUMBER] == nameOrNumber || f[fd.NAME] == nameOrNumber;
     })[0];
   } else {
-    field = constructor.fieldsById[nameOrNumber]
-    field = field || (constructor.fieldsByName[nameOrNumber] || [])[0];
+    field = constructor.orderedFields.filter(function(f) { return f[fd.NAME] == nameOrNumber })[0];
   }
   return field;
 }
@@ -2310,43 +2606,39 @@ Message.prototype.getProtoField = function(nameOrNumber, pkg) {
  * @param {string} fieldName - The name of the field to fetch the current EnumValue for
  * @return {Protob.EnumValue|undefined} - The current value of the enum field
  */
-Message.prototype.enumFor = function(fieldName) {
-  var field = this.getProtoField(fieldName),
-      val   = this.getValue(fieldName);
+Message.prototype.enumFor = function(fieldNameOrNumber, pkg) {
+  var field = this.getProtoField(fieldNameOrNumber, pkg),
+      fd = goog.fieldDescriptorProto,
+      val = this.getf(fieldNameOrNumber, pkg);
 
-  if(!field){ throw new Error('Field ' + fieldName + ' not defined'); }
+  if(!field){ throw new Error('Field ' + fieldNameOrNumber + ' not defined'); }
+  if(!field[fd.TYPE] == 'TYPE_ENUM') throw new Error('Field ' + fieldNameorNumber + ' is not an enum');
 
-  if(val === undefined || val === null) {
-    return;
-  } else {
-    if(val instanceof EnumValue) {
-      return val;
-    } else {
-      return field.concrete.fetch(val);
-    }
-  }
+  return val;
 }
 
 /**
  * Fetches the current numeric value of the specified enum value
- * @param {string} fieldName - The name of the field
+ * @param {string} fieldNameOrNumber - The name or number of the enum field
  * @return {integer} - The protobuf id of the field
  */
-Message.prototype.enumValue = function(fieldName){
-  var _enum = this.enumFor(fieldName);
-  if(!_enum){ return; }
-  return _enum.number;
-}
+Message.prototype.enumValue = function(fieldNameOrNumber, pkg){
+  var _enum = this.enumFor(fieldNameOrNumber, pkg),
+      ed = goog.enumValueDescriptorProto;
+
+  return _enum && _enum.number;
+};
 
 /**
  * Fetches the current name value of the specified enum value
- * @param {string} fieldName - The name of the field
+ * @param {string} fieldNameOrNumber - The name or number of the field
  * @return {string} - The name of the EnumValue
  */
-Message.prototype.enumName = function(fieldName){
-  var _enum = this.enumFor(fieldName);
-  if(!_enum){ return; }
-  return _enum.name;
+Message.prototype.enumName = function(fieldNameOrNumber, pkg){
+  var _enum = this.enumFor(fieldNameOrNumber, pkg),
+      ed = goog.enumValueDescriptorProto;
+
+  return _enum && _enum.name;
 }
 
 /**
@@ -2354,17 +2646,19 @@ Message.prototype.enumName = function(fieldName){
  * This is called by the initializer
  * @private
  */
-Message.prototype.setDefaults = function(fieldAccess){
-  fieldAccess = fieldAccess || 'name';
-  if(!this.constructor.descriptor) { return; }
-  if(!this.constructor.descriptor.field) { return; }
+Message.prototype.setDefaults = function(){
+  var dp = goog.descriptorProto,
+      fd = goog.fieldDescriptorProto;
 
-  var fields = this.constructor.descriptor.field || [];
+  if(!this.constructor.descriptor) { return; }
+  if(!this.constructor.descriptor[dp.FIELD]) { return; }
+
+  var fields = this.constructor.descriptor[dp.FIELD] || [];
 
   for(var i=0; i<fields.length; i++){
-    if(this.isFieldSet(fields[i].number)) continue;
-    if(fields[i].default_value == undefined) continue;
-    this[fields[i][fieldAccess]] = fields[i].default_value;
+    if(this.isFieldSet(fields[i][fd.NUMBER])) continue;
+    if(fields[i][fd.DEFAULT_VALUE] == undefined) continue;
+    this.setf(fields[i][fd.DEFAULT_VALUE], fields[i][fd.NUMBER]);
   }
 };
 
@@ -2373,47 +2667,105 @@ Message.prototype.setDefaults = function(fieldAccess){
  *
  * @param {object} opts - Options
  * @param {array} [opts.extensions] - An array of package names. Any extensions that are found, that are not in the extensions list are excluded. By default, all fields are included
- * @param {string} opts.enums - Select which style of ENUM rendering. 'full', 'name' or 'value' values. Default 'value'
- * @param {boolean} opts.fieldIds - render the output using the field ID as the properties of the object. default false
- *
  * @return {Protob.Message} - The fully coorced message
  */
-Message.prototype.protoValues = function(opts){ 
-  opts = opts || {};
-  var out = {},
-      self = this,
-      fieldAccess = opts.fieldAccess || 'name',
-      fields = this.constructor.descriptor.field || [],
-      fieldsByPkg = this.constructor.fieldsByPkg;
+Message.prototype.protoValues = function(opts){
+  var self = this,
+      out = {};
 
-  if(opts.extensions){
-    fields = fieldsByPkg[undefined] || [];
-    if(!Array.isArray(opts.extensions)) opts.extensions = Array(opts.extensions);
-    opts.extensions.forEach(function(pkg){ fields = fields.concat(fieldsByPkg[pkg] || []) });
-  }
-
-  fields.forEach(function(field) {
-    var value = self[field.number] || self[field.name],
-        isMsg = field.fieldType === 'TYPE_MESSAGE';
-    if ( field.repeated ) {
-      if ( value === undefined || value === null ){ out[field[fieldAccess]] = []; return; }
-      if ( !Array.isArray(value) ) { value = [value]; }
-      out[field[fieldAccess]] = value.map(function(val) {
-        var item = encodeField.call(self, field, val, opts);
-        if(isMsg && item) { item = item.protoValues(opts) }
-        return item;
-      });
-    } else {
-      var val = encodeField.call(self, field, value, opts);
-      if ( val !== undefined && val !== null ) {
-        if(isMsg && val) { val = val.protoValues(opts) }
-        out[field[fieldAccess]] = val;
-      }
+  Object.keys(this.constructor.fieldsById).forEach(function(id) {
+    if(self.hasOwnProperty(id)) {
+      out = self[id];
     }
   });
 
   return new this.constructor(out);
 };
+
+/**
+ * Renders the message as a JSON compatible object
+ * @param {object} [opts] - An options hash
+ * @param {Array<string>} [opts.extensions] - Only render fields that this message owns and the extensions listed explicitly. Default all.
+ * @param {bool} [opts.enumsAsValues] - Output enums as names by default, if this is true, render enums as values instead.
+ * @param {bool} [opts.longsAsInts] - By default longs are rendered as strings, but this option allows for having them rendered as ints
+ * @param {bool} [opts.fieldsAsNumbers] - By default, field names are used. Set this to true to have field ids used instead
+ * @return {pojo} - A pojo with fields set by name
+ */
+Message.prototype.asJSON = function(opts) {
+  var Klass = this.constructor,
+      out = {},
+      self = this,
+      fd = goog.fieldDescriptorProto;
+
+  opts = opts || {};
+
+  function setField(field) {
+    var fieldNumber = field[fd.NUMBER],
+        fieldName = field[fd.NAME],
+        id = (opts.fieldsAsNumbers ? fieldNumber : fieldName),
+        val;
+
+    if(!field.repeated && !self.isFieldSet(fieldNumber)) return;
+
+    val = self.getf(fieldNumber);
+    if(!val) {
+      out[id] = val;
+      return;
+    } else {
+      if(fieldIsEnum(field)) {
+        if(field.repeated) {
+          out[id] = val.map(function(v) { return (opts.enumsAsValues ? v.number : v.name); });
+        } else {
+          out[id] = (opts.enumsAsValues ? val.number : val.name);
+        }
+      } else if(fieldIsMessage(field)) {
+        if(field.repeated) {
+          out[id] = val.map(function(v) { return (v.asJSON ? v.asJSON(opts) : v); });
+        } else {
+          out[id] = (val.asJSON ? val.asJSON(opts) : val);
+        }
+      } else if(fieldIsLong(field)) {
+        if(field.repeated) {
+          out[id] = val.map(function(v) { return (opts.longsAsInts ? v.toInt() : v.toString()); });
+        } else {
+          out[id] = (opts.longsAsInts ? val.toInt() : val.toString());
+        }
+      } else {
+        out[id] = val;
+      }
+    }
+  }
+
+  (Klass.fieldsByPkg[undefined] || []).forEach(setField);
+
+  var extensionPkgs = opts.extensions;
+
+  if(!extensionPkgs) extensionPkgs = Object.keys(Klass.fieldsByPkg);
+
+  extensionPkgs.forEach(function(pkg) {
+    if(!pkg || pkg == 'undefined') return;
+    var fields = Klass.fieldsByPkg[pkg];
+    fields.forEach(setField);
+  });
+  return out;
+};
+
+function fieldIsEnum(field) {
+  if(!field) return false;
+  return field.fieldType == 'TYPE_ENUM';
+}
+
+function fieldIsMessage(field) {
+  if(!field) return false;
+  return field.fieldType == 'TYPE_MESSAGE';
+}
+
+var IS_LONG = /64$/;
+function fieldIsLong(field) {
+  if(!field) return false;
+  return IS_LONG.test(field.fieldType);
+}
+
 
 /**
  * Fetch the field with the given id
@@ -2464,9 +2816,10 @@ Message.prototype.decode = function(buffer, length, opts) {
   length = typeof length === 'number' ? length : -1;
   opts = opts || {};
   var self = this,
-      fieldAccess = opts.fieldAccess || 'name',
       start = buffer.offset,
-      msg = new (this.constructor)({fieldAccess: fieldAccess});
+      msg = new (this.constructor)(),
+      fd = goog.fieldDescriptorProto,
+      fo = goog.fieldOptions;
 
   while (buffer.offset < start+length || (length == -1 && buffer.remaining() > 0)) {
     var tag = buffer.readVarint32(),
@@ -2495,32 +2848,34 @@ Message.prototype.decode = function(buffer, length, opts) {
         }
       continue;
     }
-    if (field.repeated && (!field.options || !field.options.packed)) {
-      msg[field[fieldAccess]] = msg[field[fieldAccess]] || [];
-      msg[field[fieldAccess]].push(decoders.field(wireType, buffer, false, field, opts));
+    if (field.repeated && (!field[fd.OPTIONS] || !field[fd.OPTIONS][fo.PACKED])) {
+      msg[field[fd.NUMBER]] = msg[field[fd.NUMBER]] || [];
+      msg[field[fd.NUMBER]].push(decoders.field(wireType, buffer, false, field, opts));
     } else {
-      msg[field[fieldAccess]] = decoders.field(wireType, buffer, false, field, opts);
+      msg[field[fd.NUMBER]] = decoders.field(wireType, buffer, false, field, opts);
     }
   }
+
   // Check if all required fields are present
   var LABEL = registry.lookup('google.protobuf.FieldDescriptorProto.Label');
   this.constructor.orderedFields.forEach( function(field) {
-    if ( LABEL.fetch(field.label) != LABEL.fetch("LABEL_REQUIRED")) { return; }
-    if ( msg[field[fieldAccess]] === undefined || msg[field[fieldAccess]] === null ){
-      var err = new Error("Missing field "+field.name);
+    if ( LABEL.fetch(field[fd.LABEL]) != LABEL.fetch("LABEL_REQUIRED")) { return; }
+    if ( msg[field[fd.NUMBER]] === undefined || msg[field[fd.NUMBER]] === null ){
+      var err = new Error("Missing field "+field[fd.NAME]);
       err.decoded = msg;
       throw err;
     }
+    var TYPE  = registry.lookup('google.protobuf.FieldDescriptorProto.Type'),
+        dp = goog.descriptorProto,
+        evd = goog.enumValueDescriptorProto,
+        type = TYPE.fetch(field[fd.TYPE]);
+
+    // convert the default_value (if any) to the proper type
+    if (field[fd.DEFAULT_VALUE] && type.name != 'TYPE_ENUM' && type.name != 'TYPE_MESSAGE') {
+      msg[field[field.NUMBER]] = coorcers[type.name](msg[field[fd.NAME]]).call(self, field[fd.DEFAULT_VALUE]);
+    }
+
   });
-
-
-  var TYPE  = registry.lookup('google.protobuf.FieldDescriptorProto.Type');
-  var type = TYPE.fetch(msg.type);
-  // convert the default_value (if any) to the proper type
-  if (msg.default_value && type.name != 'TYPE_ENUM' && type.name != 'TYPE_MESSAGE') {
-    msg.default_value = coorcers[type.name](msg.name).call(self, msg.default_value);
-  }
-
   return msg;
 };
 
@@ -2569,18 +2924,19 @@ Message.prototype.encode = function(buffer) {
 
   var fields = this.constructor.orderedFields,
       self = this,
-      protoFields = self.protoValues({fieldAccess: 'number'}),
+      dp = goog.descriptorProto,
+      fd = goog.fieldDescriptorProto,
       fieldEncoder = encoders.field;
 
   fields.forEach(function(field) {
-    if( field.required && (protoFields[field.number] === undefined || protoFields[field.number] === null )) {
-      var err = new Error("Missing at least one required field for "+self.constructor.fullName+": "+field.name);
+    if( field.required && (self[field[fd.NUMBER]] === undefined || self[field[fd.NUMBER]] === null )) {
+      var err = new Error("Missing at least one required field for "+self.constructor.fullName+": "+field[fd.NAME]);
       throw(err);
     }
   });
 
   fields.forEach(function(field){
-    fieldEncoder(field, protoFields[field.number], buffer);
+    fieldEncoder(field, self[field[fd.NUMBER]], buffer);
   });
 
   return buffer;
@@ -2588,7 +2944,7 @@ Message.prototype.encode = function(buffer) {
 
 exports.Message = Message;
 
-},{"./compiler/coorcers":4,"./compiler/decoders":5,"./compiler/encoders":6,"./enum":7,"./protob":10,"./registry":11,"./util":14,"underscore":48}],10:[function(require,module,exports){
+},{"./compiler/coorcers":4,"./compiler/decoders":5,"./compiler/encoders":6,"./compiler/google-protos-defn":7,"./enum":8,"./protob":11,"./registry":12,"./util":15,"underscore":49}],11:[function(require,module,exports){
 (function (global){
 /**
  * Provides protocol buffer support for Node.js
@@ -2821,10 +3177,10 @@ exports.registry = require('./registry');
 Protob.registry = exports.registry;
 
 }).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./registry":11,"./version":15,"bytebuffer":37,"path":26}],11:[function(require,module,exports){
+},{"./registry":12,"./version":16,"bytebuffer":38,"path":27}],12:[function(require,module,exports){
 (function (global){
-var cache,
-    REGISTRY;
+var cache, REGISTRY,
+    goog = require('./compiler/google-protos-defn');
 
 if(typeof window == 'undefined') {
   global.protob = global.protob || {};
@@ -2837,184 +3193,189 @@ if(typeof window == 'undefined') {
 if(cache.registry) {
   module.exports = cache.registry;
   return;
-}
+} else {
+  var registry = {}, 
+      extensions = {}, 
+      awaitingFinalizers = [];
 
-var registry = {},
-    extensions = {},
+  function Registry() { }
+
+  Registry.prototype.reset = function() {
     awaitingFinalizers = [];
-
-REGISTRY = cache.registry = new Registry();
-module.exports = REGISTRY;
-
-function Registry() { }
-
-Registry.prototype.reset = function() {
-  awaitingFinalizers = [];
-  registry = {};
-  extensions = {};
-  require('./compiler').Compiler.reset();
-}
-
-function Scope(name, parentScope) {
-  if(parentScope) {
-    this.name = [parentScope.name, name].join('.');
-  } else {
-    this.name = name;
+    registry = {};
+    extensions = {};
+    require('./compiler').Compiler.reset();
+    this.compileGoogleDescriptors();
   }
-}
 
-Scope.prototype.scope = function(name) { return new Scope(name, this); };
-Scope.prototype.lookup = function(name) { 
-  return REGISTRY.lookup([this.name, name].join('.'));
-};
-
-Scope.prototype.keys = function() {
-  var keys = [],
-      self = this,
-      name = this.name,
-      ln = this.name.length;
-
-  Object.keys(registry).forEach(function(key) {
-    if(key.substr(0, ln) == name) keys.push(key.substr(ln, key.length).replace(/^\./, ''));
-  });
-  return keys;
-};
-
-Scope.prototype.fullKeys = function() {
-  var keys = this.keys(),
-      self = this;
-
-  return keys.map(function(k) { 
-    return (self.name ? self.name + '.' + k : k);
-  });
-};
-
-/**
- * @api public
- */
-Registry.prototype.lookup = function(name) {
-  if(!awaitingFinalizers.length) this._finalize();
-  return registry[name];
-};
-
-Registry.prototype.l = function(name) { return this.lookup(name); };
-Registry.prototype.s = function(name) { return this.scope(name); };
-
-Registry.prototype.scope = function(name) {
-  return new Scope(name);
-}
-
-/**
- * @api public
- */
-Registry.prototype.register = function(descriptors) {
-  var compiler = require('./compiler').Compiler;
-  compiler.compileDescriptors(descriptors);
-};
-
-/**
- * @api public
- */
-Registry.prototype.keys = function() {
-  return Object.keys(registry);
-}
-
-/**
- * @api public
- */
-Registry.prototype.has = function(name) {
-  return registry.hasOwnProperty(name);
-}
-
-/**
- * @api private
- */
-Registry.prototype._finalize = function(force) {
-  if(!force && !awaitingFinalizers.length) return;
-  var finalizers = awaitingFinalizers;
-
-  finalizers.forEach(function(name) { registry[name].finalize(); });
-
-  awaitingFinalizers = [];
-
-  // Set the message field options
-  Object.keys(registry).forEach(function(name) {
-    var desc = registry[name].descriptor,
-        FieldOptions = registry['google.protobuf.FieldOptions'];
-
-    if(desc.field) {
-      desc.field.forEach(function(f) {
-        if(!f.options || f.options instanceof FieldOptions) return;
-        f.options = (new FieldOptions(f.options)).protoValues({fieldAccess: 'number'});
-      });
+  function Scope(name, parentScope) {
+    if(parentScope) {
+      this.name = [parentScope.name, name].join('.');
+    } else {
+      this.name = name;
     }
-  });
-};
+  }
 
-Registry.prototype._addFinalize = function(name) {
-  awaitingFinalizers = awaitingFinalizers || [];
-  if(awaitingFinalizers.indexOf(name) < 0) awaitingFinalizers.push(name);
+  Scope.prototype.scope = function(name) { return new Scope(name, this); };
+  Scope.prototype.lookup = function(name) { 
+    return REGISTRY.lookup([this.name, name].join('.'));
+  };
+
+  Scope.prototype.keys = function() {
+    var keys = [],
+        self = this,
+        name = this.name,
+        ln = this.name.length;
+
+    Object.keys(registry).forEach(function(key) {
+      if(key.substr(0, ln) == name) keys.push(key.substr(ln, key.length).replace(/^\./, ''));
+    });
+    return keys;
+  };
+
+  Scope.prototype.fullKeys = function() {
+    var keys = this.keys(),
+        self = this;
+
+    return keys.map(function(k) { 
+      return (self.name ? self.name + '.' + k : k);
+    });
+  };
+
+  /**
+   * @api public
+   */
+  Registry.prototype.lookup = function(name) {
+    if(!awaitingFinalizers.length) this._finalize();
+    return registry[name];
+  };
+
+  Registry.prototype.l = function(name) { return this.lookup(name); };
+  Registry.prototype.s = function(name) { return this.scope(name); };
+
+  Registry.prototype.scope = function(name) { return new Scope(name); }
+
+  /**
+   * @api public
+   */
+  Registry.prototype.register = function(descriptors) {
+    var compiler = require('./compiler').Compiler;
+    compiler.compileDescriptors(descriptors);
+  };
+
+  /**
+   * @api public
+   */
+  Registry.prototype.keys = function() {
+    return Object.keys(registry);
+  }
+
+  /**
+   * @api public
+   */
+  Registry.prototype.has = function(name) {
+    return registry.hasOwnProperty(name);
+  }
+
+  /**
+   * @api private
+   */
+  Registry.prototype._finalize = function(force) {
+    if(!force && !awaitingFinalizers.length) return;
+    var finalizers = awaitingFinalizers,
+        dp = goog.descriptorProto,
+        fd = goog.fieldDescriptorProto;
+
+    finalizers.forEach(function(name) { registry[name].finalize(); });
+    awaitingFinalizers = [];
+  };
+
+  Registry.prototype._addFinalize = function(name) {
+    awaitingFinalizers = awaitingFinalizers || [];
+    if(awaitingFinalizers.indexOf(name) < 0) awaitingFinalizers.push(name);
+  }
+
+  /**
+   * @api private
+   */
+  Registry.prototype._addObject = function(name, protobuffObject) {
+    this._addFinalize(name);
+    registry[name] = protobuffObject;
+  };
+
+  /**
+   * @api private
+   */
+  Registry.prototype._fetch = function(name) {
+    return registry[name];
+  }
+
+
+  /**
+   * @api private
+   */
+  Registry.prototype._addExtension = function(ext) {
+    var fd = goog.fieldDescriptorProto,
+        extendee = (ext[fd.EXTENDEE]).replace(/^\./, ''),
+        key = extendee + (ext[fd.NUMBER]);
+
+    ext[fd.EXTENDEE] = extendee;
+    extensions[key] = ext;
+  };
+
+  Registry.prototype.extensions = function() { return extensions; };
+
+  /**
+   * @api private
+   */
+  Registry.prototype._applyExtensions = function() {
+    var self = this,
+        fd = goog.fieldDescriptorProto;
+
+    Object.keys(extensions).forEach(function(key){
+      var ext = extensions[key],
+          Extendee = registry[ext[fd.EXTENDEE]],
+          extendee = Extendee.descriptor,
+          fields = extendee[fd.FIELD],
+          field;
+
+      if(!fields) fields = extendee[fd.EXTENDEE] = extendee[fd.EXTENDEE] || [];
+
+      field = (fields || []).filter(function(f){ return f[fd.NUMBER] === (ext[fd.NUMBER]); })[0];
+      if(!field){
+        self._addFinalize(Extendee.fullName);
+        fields.push(ext);
+      }
+    });
+    extensions = {};
+  };
+
+  /**
+   * @private
+   */
+  Registry.prototype.googleDescriptorsCompiled = function() {
+    this.googleCompiled = true;
+  }
+
+  Registry.prototype.compileGoogleDescriptors = function() {
+    if(this.googleCompiled) return;
+    this.register(require('./google_descriptors'));
+    this._finalize();
+    this.googleDescriptorsCompiled();
+  }
+
+  REGISTRY = cache.registry = new Registry();
+  module.exports = REGISTRY;
+  REGISTRY.reset();
 }
-
-/**
- * @api private
- */
-Registry.prototype._addObject = function(name, protobuffObject) {
-  this._addFinalize(name);
-  registry[name] = protobuffObject;
-};
-
-/**
- * @api private
- */
-Registry.prototype._fetch = function(name) {
-  return registry[name];
-}
-
-
-/**
- * @api private
- */
-Registry.prototype._addExtension = function(ext) {
-  var extendee = (ext[2] || ext.extendee).replace(/^\./, ''),
-      key = extendee + (ext[3] || ext.number);
-
-  ext.extendee = extendee;
-  extensions[key] = ext;
-};
-
-/**
- * @api private
- */
-Registry.prototype._applyExtensions = function() {
-  var self = this;
-  Object.keys(extensions).forEach(function(key){
-    var ext = extensions[key],
-        Extendee = registry[ext.extendee],
-        extendee = Extendee.descriptor,
-        fields = extendee[2] || extendee.field,
-        field;
-
-    if(!fields) fields = extendee[2] = [];
-
-    field = (fields || []).filter(function(f){ return f.number === (ext[3] || ext.number); })[0];
-    if(!field){
-      self._addFinalize(Extendee.fullName);
-      fields.push(ext);
-    }
-  });
-};
-
-// Seed the registry with the google descriptors
-REGISTRY.register(require('./google_descriptors'));
-REGISTRY._finalize();
 
 }).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./compiler":3,"./google_descriptors":8}],12:[function(require,module,exports){
+},{"./compiler":3,"./compiler/google-protos-defn":7,"./google_descriptors":9}],13:[function(require,module,exports){
 /**
  * @module protob/service
  */
 var SERVICE = "SERVICE",
+    goog = require('./compiler/google-protos-defn'),
     registry = require('./registry');
 
 /**
@@ -3043,6 +3404,7 @@ var Service = function() { };
  *
  */
 Service.updateDescriptor = function(desc) {
+  var sd = goog.serviceDescriptorProto;
   /** @member {string} - The type of service is 'SERVICE' */
   this.type           = SERVICE;
 
@@ -3050,11 +3412,11 @@ Service.updateDescriptor = function(desc) {
   this.descriptor     = desc;
 
   /** @member {string} - The name of the message */
-  this.clazz          = desc.name;
+  this.clazz          = desc[sd.NAME];
 
   /** @member {string} - The full protobuf name including package */
-  this.fullName       = this.parent + "." + desc.name;
-  this.options        = desc.options;
+  this.fullName       = this.parent + "." + desc[sd.NAME];
+  this.options        = desc[sd.OPTIONS];
   this.reset = Service.reset;
   this.finalize = Service.finalize;
   this.reset();
@@ -3073,27 +3435,26 @@ Service.reset = function() { this.methods = {}; }
 Service.finalize = function() {
   this.reset();
   var self = this,
+      sd = goog.serviceDescriptorProto,
+      md = goog.methodDescriptorProto,
       MethodOptions = registry.lookup('google.protobuf.MethodOptions');
 
-  if ( this.descriptor && Array.isArray(this.descriptor.method) ) {
-    this.descriptor.method.forEach(function(method) {
-      method.inputType = registry.lookup(method.input_type.replace(/^\./, ''));
-      method.outputType = registry.lookup(method.output_type.replace(/^\./, ''));
+  if ( this.descriptor && Array.isArray(this.descriptor[sd.METHOD]) ) {
+    this.descriptor[sd.METHOD].forEach(function(method) {
+      method[md.INPUT_TYPE] = registry.lookup(method[md.INPUT_TYPE].replace(/^\./, ''));
+      method[md.OUTPUT_TYPE] = registry.lookup(method[md.OUTPUT_TYPE].replace(/^\./, ''));
 
-      self.methods[method.name] = {
-        name: method.name,
-        inputType: method.inputType,
-        outputType: method.outputType,
-      };
-
-      if(method.options) self.methods[method.name].options = new MethodOptions(method.options);
+      self.methods[method[md.NAME]] = method;
+      method.name = method[md.NAME];
+      method.inputType = method[md.INPUT_TYPE];
+      method.outputType = method[md.OUTPUT_TYPE];
     });
   }
 };
 
 exports.Service = Service;
 
-},{"./registry":11}],13:[function(require,module,exports){
+},{"./compiler/google-protos-defn":7,"./registry":12}],14:[function(require,module,exports){
 /**
  * Adds an initialize lifecycle initializer to Steven applications to compile protos.
  *
@@ -3125,7 +3486,7 @@ function stevenInit(Steven){
 
 module.exports = stevenInit;
 
-},{"./compiler":3,"path":26}],14:[function(require,module,exports){
+},{"./compiler":3,"path":27}],15:[function(require,module,exports){
 /**
  * @module protob/util
  * A simple set of utilities
@@ -3160,12 +3521,12 @@ exports.Util = {
   }
 };
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 module.exports = "0.4.2";
 
-},{}],16:[function(require,module,exports){
-
 },{}],17:[function(require,module,exports){
+
+},{}],18:[function(require,module,exports){
 // http://wiki.commonjs.org/wiki/Unit_Testing/1.0
 //
 // THIS IS NOT TESTED NOR LIKELY TO WORK OUTSIDE V8!
@@ -3527,14 +3888,14 @@ var objectKeys = Object.keys || function (obj) {
   return keys;
 };
 
-},{"util/":19}],18:[function(require,module,exports){
+},{"util/":20}],19:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -4124,7 +4485,7 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this,require("/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":18,"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":25,"inherits":24}],20:[function(require,module,exports){
+},{"./support/isBuffer":19,"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":26,"inherits":25}],21:[function(require,module,exports){
 /**
  * The buffer module from node.js, for the browser.
  *
@@ -5237,7 +5598,7 @@ function assert (test, message) {
   if (!test) throw new Error(message || 'Failed assertion')
 }
 
-},{"base64-js":21,"ieee754":22}],21:[function(require,module,exports){
+},{"base64-js":22,"ieee754":23}],22:[function(require,module,exports){
 var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 ;(function (exports) {
@@ -5360,7 +5721,7 @@ var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 	module.exports.fromByteArray = uint8ToBase64
 }())
 
-},{}],22:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 exports.read = function(buffer, offset, isLE, mLen, nBytes) {
   var e, m,
       eLen = nBytes * 8 - mLen - 1,
@@ -5446,7 +5807,7 @@ exports.write = function(buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128;
 };
 
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -5748,7 +6109,7 @@ function isUndefined(arg) {
   return arg === void 0;
 }
 
-},{}],24:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -5773,7 +6134,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -5835,7 +6196,7 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 (function (process){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -6063,7 +6424,7 @@ var substr = 'ab'.substr(-1) === 'b'
 ;
 
 }).call(this,require("/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js"))
-},{"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":25}],27:[function(require,module,exports){
+},{"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":26}],28:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -6137,7 +6498,7 @@ function onend() {
   });
 }
 
-},{"./readable.js":31,"./writable.js":33,"inherits":24,"process/browser.js":29}],28:[function(require,module,exports){
+},{"./readable.js":32,"./writable.js":34,"inherits":25,"process/browser.js":30}],29:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -6266,7 +6627,7 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"./duplex.js":27,"./passthrough.js":30,"./readable.js":31,"./transform.js":32,"./writable.js":33,"events":23,"inherits":24}],29:[function(require,module,exports){
+},{"./duplex.js":28,"./passthrough.js":31,"./readable.js":32,"./transform.js":33,"./writable.js":34,"events":24,"inherits":25}],30:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -6321,7 +6682,7 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],30:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -6364,7 +6725,7 @@ PassThrough.prototype._transform = function(chunk, encoding, cb) {
   cb(null, chunk);
 };
 
-},{"./transform.js":32,"inherits":24}],31:[function(require,module,exports){
+},{"./transform.js":33,"inherits":25}],32:[function(require,module,exports){
 (function (process){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -7301,7 +7662,7 @@ function indexOf (xs, x) {
 }
 
 }).call(this,require("/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js"))
-},{"./index.js":28,"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":25,"buffer":20,"events":23,"inherits":24,"process/browser.js":29,"string_decoder":34}],32:[function(require,module,exports){
+},{"./index.js":29,"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":26,"buffer":21,"events":24,"inherits":25,"process/browser.js":30,"string_decoder":35}],33:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -7507,7 +7868,7 @@ function done(stream, er) {
   return stream.push(null);
 }
 
-},{"./duplex.js":27,"inherits":24}],33:[function(require,module,exports){
+},{"./duplex.js":28,"inherits":25}],34:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -7895,7 +8256,7 @@ function endWritable(stream, state, cb) {
   state.ended = true;
 }
 
-},{"./index.js":28,"buffer":20,"inherits":24,"process/browser.js":29}],34:[function(require,module,exports){
+},{"./index.js":29,"buffer":21,"inherits":25,"process/browser.js":30}],35:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -8088,11 +8449,11 @@ function base64DetectIncompleteChar(buffer) {
   return incomplete;
 }
 
-},{"buffer":20}],35:[function(require,module,exports){
-module.exports=require(18)
-},{}],36:[function(require,module,exports){
+},{"buffer":21}],36:[function(require,module,exports){
 module.exports=require(19)
-},{"./support/isBuffer":35,"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":25,"inherits":24}],37:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
+module.exports=require(20)
+},{"./support/isBuffer":36,"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":26,"inherits":25}],38:[function(require,module,exports){
 /*
  Copyright 2013 Daniel Wirtz <dcode@dcode.io>
 
@@ -10294,7 +10655,7 @@ module.exports=require(19)
 
 })(this);
 
-},{"buffer":20,"long":38}],38:[function(require,module,exports){
+},{"buffer":21,"long":39}],39:[function(require,module,exports){
 /*
  Copyright 2013 Daniel Wirtz <dcode@dcode.io>
  Copyright 2009 The Closure Library Authors. All Rights Reserved.
@@ -11236,6 +11597,8 @@ module.exports=require(19)
 
 })(this);
 
+},{}],"duplexer":[function(require,module,exports){
+module.exports=require('zdmJ4e');
 },{}],"zdmJ4e":[function(require,module,exports){
 var Stream = require("stream")
 var writeMethods = ["write", "end", "destroy"]
@@ -11325,9 +11688,7 @@ function duplex(writer, reader) {
     }
 }
 
-},{"stream":28}],"duplexer":[function(require,module,exports){
-module.exports=require('zdmJ4e');
-},{}],41:[function(require,module,exports){
+},{"stream":29}],42:[function(require,module,exports){
 (function (process){
 // Approach:
 //
@@ -12059,9 +12420,9 @@ function absUnix (p) {
 }
 
 }).call(this,require("/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js"))
-},{"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":25,"assert":17,"events":23,"fs":16,"inherits":42,"minimatch":43,"path":26}],42:[function(require,module,exports){
-module.exports=require(24)
-},{}],43:[function(require,module,exports){
+},{"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":26,"assert":18,"events":24,"fs":17,"inherits":43,"minimatch":44,"path":27}],43:[function(require,module,exports){
+module.exports=require(25)
+},{}],44:[function(require,module,exports){
 (function (process){
 ;(function (require, exports, module, platform) {
 
@@ -13120,7 +13481,7 @@ function regExpEscape (s) {
   )
 
 }).call(this,require("/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js"))
-},{"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":25,"lru-cache":44,"path":26,"sigmund":45}],44:[function(require,module,exports){
+},{"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":26,"lru-cache":45,"path":27,"sigmund":46}],45:[function(require,module,exports){
 ;(function () { // closure for web browsers
 
 if (typeof module === 'object' && module.exports) {
@@ -13374,7 +13735,7 @@ function Entry (key, value, lu, length, now) {
 
 })()
 
-},{}],45:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 module.exports = sigmund
 function sigmund (subject, maxSessions) {
     maxSessions = maxSessions || 10;
@@ -13415,6 +13776,8 @@ function sigmund (subject, maxSessions) {
 
 // vim: set softtabstop=4 shiftwidth=4:
 
+},{}],"through":[function(require,module,exports){
+module.exports=require('MIlwAv');
 },{}],"MIlwAv":[function(require,module,exports){
 (function (process){
 var Stream = require('stream')
@@ -13527,9 +13890,7 @@ function through (write, end, opts) {
 
 
 }).call(this,require("/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js"))
-},{"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":25,"stream":28}],"through":[function(require,module,exports){
-module.exports=require('MIlwAv');
-},{}],48:[function(require,module,exports){
+},{"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":26,"stream":29}],49:[function(require,module,exports){
 //     Underscore.js 1.5.2
 //     http://underscorejs.org
 //     (c) 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
