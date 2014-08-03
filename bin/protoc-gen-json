@@ -35,7 +35,7 @@ process.stdin.on("end", function(){
   request.getf('proto_file').forEach(function(file){
     var f = new File()
     if(singleFile) {
-      singleFiles.push(file.asJSON({fieldsAsNumber: true}));
+      singleFiles.push(file.asJSON({fieldsAsNumbers: true}));
     } else {
       f.setf(file.getf('name').replace(/\.proto$/, '.json'), 'name');
       f.setf(JSON.stringify([file.asJSON({fieldsAsNumbers: true})], null, 2), 'content');

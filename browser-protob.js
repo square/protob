@@ -228,7 +228,6 @@ Compiler.prototype.compileMessage = function(messageDesc, pkg, descriptor) {
       Message = require('./message').Message,
       self    = this,
       messageEnumType = messageDesc[descriptorProto.ENUM_TYPE];
-  if(fullName == 'google.protobuf.FieldOptions') debugger;
 
   if( Array.isArray(messageEnumType) ) {
     messageEnumType.forEach(function(enumDesc) {
@@ -3362,6 +3361,18 @@ if(cache.registry) {
     this.register(require('./google_descriptors'));
     this._finalize();
     this.googleDescriptorsCompiled();
+    // These are only the google ones. We need to set their descriptors up
+    Object.keys(registry).forEach(function(key) {
+      var thing = registry[key];
+      thing.fileDescriptor = new (registry['google.protobuf.FileDescriptorProto'])(thing.fileDescriptor);
+      if(thing.type.name == 'TYPE_MESSAGE') {
+        registry[key].descriptor = new (registry['google.protobuf.DescriptorProto'])(thing.descriptor);
+        registry[key].finalize(true);
+      } else if(thing.type.name == 'TYPE_ENUM') {
+        registry[key].descriptor = new (registry['google.protobuf.EnumDescriptorProto'])(thing.descriptor);
+        registry[key].finalize(true);
+      }
+    });
   }
 
   REGISTRY = cache.registry = new Registry();
@@ -11597,8 +11608,6 @@ module.exports=require(20)
 
 })(this);
 
-},{}],"duplexer":[function(require,module,exports){
-module.exports=require('zdmJ4e');
 },{}],"zdmJ4e":[function(require,module,exports){
 var Stream = require("stream")
 var writeMethods = ["write", "end", "destroy"]
@@ -11688,7 +11697,9 @@ function duplex(writer, reader) {
     }
 }
 
-},{"stream":29}],42:[function(require,module,exports){
+},{"stream":29}],"duplexer":[function(require,module,exports){
+module.exports=require('zdmJ4e');
+},{}],42:[function(require,module,exports){
 (function (process){
 // Approach:
 //
@@ -13776,8 +13787,6 @@ function sigmund (subject, maxSessions) {
 
 // vim: set softtabstop=4 shiftwidth=4:
 
-},{}],"through":[function(require,module,exports){
-module.exports=require('MIlwAv');
 },{}],"MIlwAv":[function(require,module,exports){
 (function (process){
 var Stream = require('stream')
@@ -13890,7 +13899,9 @@ function through (write, end, opts) {
 
 
 }).call(this,require("/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js"))
-},{"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":26,"stream":29}],49:[function(require,module,exports){
+},{"/Users/dneighman/Development/protob/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":26,"stream":29}],"through":[function(require,module,exports){
+module.exports=require('MIlwAv');
+},{}],49:[function(require,module,exports){
 //     Underscore.js 1.5.2
 //     http://underscorejs.org
 //     (c) 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
