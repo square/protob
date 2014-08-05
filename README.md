@@ -35,7 +35,7 @@ Define some protocol buffer files (.proto files) either on your local system or 
 
 Note that all proto files must have a package defined.
 
-Define a protos.json file:
+Define a protos.json file. This tells protob where to fetch your proto files from, and which parts you actually want compiled. Targeting only the protos that you need means that you won't have as many to parse when starting up:
 
     [
       {
