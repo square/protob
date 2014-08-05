@@ -227,6 +227,26 @@ For example, suppose you wanted to expose a JSON API of your service:
 
 Using services in this way will allow you to stick to your defined API and greatly simplify working with your API when coming to a new codebase. Read the proto definitions and you know the API.
 
+This service method isn't just useful in the controller, you can use it anywhere in your code.
+
+    myJobHandler.on('someJob', function(payload) {
+      var MyService = registry.lookup('some.package.MyService'),
+          service = new MyService();
+      service.MyMethod(payload)
+      .then(function(res) {
+        // do stuff
+      }).catch(errorHandler);
+    });
+
+Or even just in the console:
+
+      MyService = registry.lookup('some.package.MyService');
+      service = new MyService();
+      p = service.MyMethod({some: 'args'})
+      p.inspect().value // response
+
+Services are a great way to create code re-use with a strong, discoverable API.
+
 ## Options
 
 Access field, method, service, enum options.
