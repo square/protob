@@ -196,7 +196,7 @@ On the server, use services to receive requests and fulfil the response, on the 
       return { response: 'object' };
     });
 
-Service methods always return a promise (from the q library). So using a service method, on the server or client is simple.
+Service methods always return a promise (from the q library). So using a service method, on the server or client is simple. Return a promise or a raw object.
 
     service = new MyService();
 
