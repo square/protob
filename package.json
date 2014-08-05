@@ -1,6 +1,6 @@
 {
   "name": "protob",
-  "version": "0.4.2-browser8",
+  "version": "0.5.0",
   "description": "Protocol Buffers",
   "main": "index.js",
   "repository": {
