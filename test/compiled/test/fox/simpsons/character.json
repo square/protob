@@ -14,6 +14,14 @@
             "3": 1,
             "4": "LABEL_REQUIRED",
             "5": "TYPE_STRING",
+            "8": {
+              "1": "STRING",
+              "3": false,
+              "999": [],
+              "2014": {
+                "1": "killa"
+              }
+            },
             "9": ""
           },
           {
@@ -52,7 +60,15 @@
             "3": 6,
             "4": "LABEL_OPTIONAL",
             "5": "TYPE_INT64",
-            "7": "0",
+            "7": "1",
+            "9": ""
+          },
+          {
+            "1": "things_i_like",
+            "3": 7,
+            "4": "LABEL_REPEATED",
+            "5": "TYPE_ENUM",
+            "6": ".test.fox.simpsons.ThingsLiked",
             "9": ""
           }
         ],
@@ -177,6 +193,37 @@
             "5": "TYPE_MESSAGE",
             "6": ".test.fox.simpsons.Character",
             "9": ""
+          },
+          {
+            "1": "repeated_enum",
+            "3": 17,
+            "4": "LABEL_REPEATED",
+            "5": "TYPE_ENUM",
+            "6": ".test.fox.simpsons.Stuff.GreetingType",
+            "9": ""
+          },
+          {
+            "1": "repeated_long",
+            "3": 18,
+            "4": "LABEL_REPEATED",
+            "5": "TYPE_INT64",
+            "9": ""
+          },
+          {
+            "1": "repeated_message",
+            "3": 19,
+            "4": "LABEL_REPEATED",
+            "5": "TYPE_MESSAGE",
+            "6": ".test.fox.simpsons.Character",
+            "9": ""
+          },
+          {
+            "1": "greeting",
+            "3": 20,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_ENUM",
+            "6": ".test.fox.simpsons.Stuff.GreetingType",
+            "9": ""
           }
         ],
         "3": [],
@@ -224,13 +271,68 @@
             "5": "TYPE_ENUM",
             "6": ".test.fox.simpsons.Stuff.GreetingType",
             "9": ""
+          },
+          {
+            "1": "name",
+            "2": ".test.common.Extendable",
+            "3": 1003,
+            "4": "LABEL_OPTIONAL",
+            "5": "TYPE_STRING",
+            "9": ""
           }
         ],
         "8": ""
       }
     ],
-    "5": [],
-    "6": [],
+    "5": [
+      {
+        "1": "ThingsLiked",
+        "2": [
+          {
+            "1": "SKATEBOARD",
+            "2": 1,
+            "4": ""
+          },
+          {
+            "1": "BEER",
+            "2": 2,
+            "4": ""
+          },
+          {
+            "1": "DONUTS",
+            "2": 3,
+            "4": ""
+          }
+        ],
+        "4": ""
+      }
+    ],
+    "6": [
+      {
+        "1": "MyService",
+        "2": [
+          {
+            "1": "SomeMethod",
+            "2": ".test.fox.simpsons.Character",
+            "3": ".test.fox.simpsons.Stuff",
+            "4": {
+              "999": [],
+              "2014": {
+                "1": "Hai there"
+              }
+            },
+            "5": "SomeMethod"
+          }
+        ],
+        "3": {
+          "999": [],
+          "2014": {
+            "1": "Service yo"
+          }
+        },
+        "4": ""
+      }
+    ],
     "7": []
   }
 ]

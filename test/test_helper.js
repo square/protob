@@ -9,26 +9,23 @@ var Util = require('util');
 var compiledPath = Path.resolve(Path.join(__dirname, 'compiled'));
 var protofilePath = Path.resolve(Path.join(__dirname, "protos.json"));
 
+
 // fs.unlinkSync(compiledPath);
 
-describe("setup", function(){
-  before(function(done){
-    var path = Path.resolve(Path.join(__dirname, "..", "bin", "protob"));
-    cmd = path + " -o " + compiledPath + " " + protofilePath + " --no-node"
-    exec("rm -rf " + compiledPath + "/*", function(_err_, _stdout_, _stderr_){
-      exec(cmd, function(err, stdout, stderr){
-        if(err) {
-          console.error(err, stderr);
-          done( new Error(stderr) );
-        } else {
-          Compiler.compile(Path.resolve(Path.join(__dirname, "compiled")));
-          done();
-        }
-      });
+before(function(done){
+  var path = Path.resolve(Path.join(__dirname, "..", "bin", "protob"));
+  cmd = path + " -o " + compiledPath + " " + protofilePath + " --no-node"
+  exec("rm -rf " + compiledPath + "/*", function(_err_, _stdout_, _stderr_){
+    exec(cmd, function(err, stdout, stderr){
+      if(err) {
+        console.error(err, stderr);
+        done( new Error(stderr) );
+      } else {
+        Compiler.compile(Path.resolve(Path.join(__dirname, "compiled")));
+        done();
+      }
     });
   });
-
-  it("is setup", function(){});
 });
 
 

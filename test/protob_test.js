@@ -159,10 +159,6 @@ describe("Protob", function(){
     Assert.equal(typeof Protob.registry, "object");
   });
 
-  it("has an object registry for protobuf classes", function(){
-    Assert.equal(typeof Protob.v, "object");
-  });
-
   it("caches the ByteBuffer implementation", function(){
     var bb = require('bytebuffer');
     Assert.equal(bb, Protob.ByteBuffer);
