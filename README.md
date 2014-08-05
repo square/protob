@@ -11,7 +11,7 @@ Protob is a full featured protocol buffer library for nodejs. It supports:
   * Services
   * Extensions
   * Name collisions protection for multiple extensions
-  * options
+  * Options
   * Full dynamic reflection
   * Browser supported
   * Compiles protos from dependent libraries
@@ -21,10 +21,9 @@ Protob was originally developed at Square where all these features are routinely
 
 ## Protofile
 
-The command line file `protob` will compile your protocol buffers and output them in a JSON format. 
+The `protob` command will compile your protocol buffers and output them in a JSON format.
 
-When compiling proto files, protob will scan any libraries that you have installed and look for protocol buffer requirements 
-and add those to the compilation list also. This ensures that you can depend on libraries that use protocol buffers in your applications.
+When compiling proto files, protob will scan any libraries that you have installed and look for dependencies that have proto.json files and add those to the compilation list also. This ensures that you can depend on libraries that use protocol buffers in your applications.
 
 protob comes with a number of command line options, use the --help flag to see them.
 
