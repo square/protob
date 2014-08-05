@@ -225,7 +225,7 @@ For example, suppose you wanted to expose a JSON API of your service:
 
     });
 
-Using services in this way will allow you to stick to your defined API and greatly simplify working with your API when coming to a new codebase. Read the proto definitions and you know the API.
+Using services in this way will allow you to stick to your defined API and greatly simplify working with your API when coming to a new codebase. Read the proto definitions and you know the API. It also allows you to test your code in one place and be confident that anywhere that uses that code is going to follow the correct API.
 
 This service method isn't just useful in the controller, you can use it anywhere in your code.
 
