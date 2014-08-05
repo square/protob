@@ -178,6 +178,55 @@ Services are compiled and provide information about the methods that have been d
     SomeMethod.outputType // the constructor for the output type of the method
     SomeMethod.getf('options') // Get the optional options object for this method
 
+### Service Handlers
+
+Services are useful in both the browser and on the server.
+
+On the server, use services to recieve requests and fulfil the responese, on the client, use services to communicate with the server using a strong api contract that is part of the executing code. Adding handlers in both places is easy.
+
+    var MyService = registry.lookup('some.package.MyService');
+
+    MyService.handler('MyMethod', function(req) {
+      // On the server hit the db or do things, in the client, make an http request
+
+      this.context // an object that was passed to the service when it was instantiated
+
+      // The response object is coorced to the correct type if you use a plain old javascript object
+      // otherwise you can construct an instance of the return type and return that.
+      return { response: 'object' };
+    });
+
+Service methods always return a promise (from the q library). So using a service method, on the server or client is simple.
+
+    service = new MyService();
+
+    service.MyMethod({some: 'request')
+    .then(function(res) {
+      res instanceof MyService.methods.MyMethod.inputType // true
+      return { some: 'response' } // coorced to the ouptut type, or construct an object of the ouptut type.
+    }).catch(errorHandler);
+
+
+These services are very useful on the server side to construct APIs with strong contracts even if they're not served to clients. By using services you can strictly enforce a particular API internally in your code. Very useful when that API is interacting with external APIs or providing services over http. 
+
+For example, suppose you wanted to expose a JSON API of your service:
+
+    controller.get("/my/thing", function(req, res, next) {
+      var MyService = registry.lookup('some.package.MyService'),
+          service = new MyService(),
+          request = req.query;
+
+      request.user_id = req.currentUserId;
+
+      service.MyMethod(request) // things that are unknown are dropped on the floor
+      .then(function(resp) {
+        res.json(resp.asJSON());
+      }).catch(next);
+
+    });
+
+Using services in this way will allow you to stick to your defined API and greatly simplify working with your API when coming to a new codebase. Read the proto definitions and you know the API.
+
 ## Options
 
 Access field, method, service, enum options.
