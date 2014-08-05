@@ -158,7 +158,7 @@ If you're working with extensions you'll need to specify the package when settin
 
 You only specify the package if the field is an extension field.
 
-The following methods are package aware and must include the package name if extensions are used.
+The following methods are package aware and must include the package name if extension fields are being accessed.
 
 * setf - set values on fields. setf(value, fieldName, packageName)
 * getf - get values from fields. getf(fieldName, packageName)
