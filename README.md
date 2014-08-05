@@ -182,7 +182,7 @@ Services are compiled and provide information about the methods that have been d
 
 Services are useful in both the browser and on the server.
 
-On the server, use services to recieve requests and fulfil the responese, on the client, use services to communicate with the server using a strong api contract that is part of the executing code. Adding handlers in both places is easy.
+On the server, use services to receive requests and fulfil the response, on the client, use services to communicate with the server using a strong API contract that is part of the executing code. Adding handlers in both places is easy.
 
     var MyService = registry.lookup('some.package.MyService');
 
