@@ -1,69 +1,74 @@
-# Protob
+# Protob - protocol buffers for Node.js
 
-Protocol buffers for Node.js.
-
-This library borrows code from the [protobuf.js](https://github.com/dcodeIO/ProtoBuf.js) library. Thanks!
-
-Protob is a full featured protocol buffer library for nodejs. It supports:
+Protob (pronounced PRO-tob) is a full featured protocol buffer library for Node.js. It includes support for:
 
   * Messages
   * Enums
   * Services
   * Extensions
-  * Name collisions protection for multiple extensions
+  * Name collision protection for multiple extensions
   * Options
   * Full dynamic reflection
-  * Browser supported
-  * Compiles protos from dependent libraries
-  * protoc integration
+  * Use in the browser
+  * Compiling protos from dependent libraries
+  * `protoc` integration
 
-Protob was originally developed at Square where all these features are routinely used.
+Protob originated at Square, where all of these features are used routinely.
 
-## Protofile
+This library borrows code from the [protobuf.js](https://github.com/dcodeIO/ProtoBuf.js) library. Thanks!
 
-The `protob` command will compile your protocol buffers and output them in a JSON format.
+## Setup
 
-When compiling proto files, protob will scan any libraries that you have installed and look for dependencies that have proto.json files and add those to the compilation list also. This ensures that you can depend on libraries that use protocol buffers in your applications.
+### Install Protob globally
+    npm install -g protob
 
-protob comes with a number of command line options, use the --help flag to see them.
+### Install `protoc`
 
-### Usage
+Protob uses `protoc` to parse `.proto` files, so make sure you have it installed (`brew install protoc` in OS X) before continuing.
 
-Protob does not try to parse raw proto files. This results in poor support for protocol buffer features and is error prone. Instead it uses protoc, so you'll need to install that (brew install protoc on osx) before you can get started.
+### Define your protocol buffers
 
-Define some protocol buffer files (.proto files) either on your local system or on github.
+Define your protocol buffers in `.proto` files as usual. These files can live in directories in your project or in their own git repo.
 
-Note that all proto files must have a package defined.
+### Create a `proto.json` file in your project's root directory
 
-Define a protos.json file. This tells protob where to fetch your proto files from, and which parts you actually want compiled. Targeting only the protos that you need means that you won't have as many to parse when starting up:
+The `proto.json` file lists the locations of the `.proto` files that Protob should compile for your project. The file format is a JSON array, where each element describes a different local path or remote git repository. An example `proto.json` file looks like this:
 
     [
+      # Local path example
       {
-        "local": "path/to/protos/directory",
-        "paths": {
-          "/" : ["specific/path"] # the key is the relative path form the directory where the proto namespace starts
+        "local": "path/to/protos/root", # This path is relative to your project's root
+        "paths": { # These paths are relative to value of "local"
+          "/" : [
+            "my/proto/package", # finds all proto files in path/to/protos/root/my/proto/package
+            "my/other/proto/package/foo.proto" # finds only foo.proto
+          ]
         }
       },
+      
+      # Git repo example
       {
-        "git": "git@git.squareup.com:some/protos_repo.git",
-        "paths": {
-          "relative/path/inside/repo": ["specific/path/to.proto", "paths"]
+        "git": "git@github.com:somebodys/repo.git",
+        "paths": { # These paths are relative to the root directory of the repo
+          "path/to/protos/root": [
+            "somebodys/proto/package",
+            "somebodys/other/proto/package/bar.proto"
+          ]
         }
       }
     ]
 
-    $> protob --help
-    $> protob
+## Compiling protos
 
-This will compile your protocol buffer definitions in JSON format to the protos directory. It will scan node\_modules for any other protos.json files that dependencies might have and fetch and compile all defined protos and proto paths.
+**Note:** Protob includes several command-line options. Run `protob --help` to see all of them.
 
-Setting up a protos.json file makes managing proto dependencies much easier.
+Run the `protob` command from your project's root directory to compile your project's protocol buffers and output them in JSON format. If your project's local dependencies define `proto.json` files, Protob compiles their protos as well. This ensures that you can depend on libraries that use protocol buffers in your application.
 
-You can also use this directly.
+Alternatively, you can also use this `protoc` command directly:
 
     $> protoc --json_out=./some/path -I some/path some/proto/files --plugin=protoc-gen-json
 
-## Library usage
+## Using protos in Node.js code
 
 Now that you have your protos compiled, you can start using them.
 
@@ -103,14 +108,14 @@ Now that you have your protos compiled, you can start using them.
 
 ### Why the weirdo getters and setters?
 
-In protocol buffers there are two ways to identify a field
+In protocol buffers there are two ways to identify a field:
 
 1. field id
 2. field name + field package
 
 Unless you're using extensions, field name is sufficient, but as soon as you use extensions, you need to specify the package and field name. It's very possible that multiple extensions that are applied to a message have the same name and if you only use the name these will collide. A protocol buffer library should always use field ids internally to prevent collisions.
 
-For this reason, when you're getting your message asJSON, you can specify some options:
+For this reason, when you're getting your message `asJSON`, you can specify some options:
 
     myMessage.asJSON({
       extensions: ['some.extension'], // this will only use extensions from the 'some.extension' package and ignore all other extensions. If not set, all set fields are used and can result in collisions.
@@ -123,7 +128,7 @@ For this reason, when you're getting your message asJSON, you can specify some o
 
 The registry is a global registry of all compiled protocol buffers. It stores them keyed by full name (package + name)
 
-To lookup items from the registry, you must have compiled your protos.
+To look up items from the registry, you must have compiled your protos.
 
     registry.lookup('some.package.that.has.MyMessage');
 
@@ -158,13 +163,13 @@ If you're working with extensions you'll need to specify the package when settin
 
 You only specify the package if the field is an extension field.
 
-The following methods are package aware and must include the package name if extension fields are being accessed.
+The following methods are package-aware and must include the package name if extension fields are being accessed.
 
-* setf - set values on fields. setf(value, fieldName, packageName)
-* getf - get values from fields. getf(fieldName, packageName)
-* getProtoField - get a field definition. getProtoField(fieldName, packageName)
-* enumValue - get an enum value. enumValue(fieldName, packageName)
-* enumName - get an enum name. enumName(fieldName, packageName)
+* `setf` - set values on fields. setf(value, fieldName, packageName)
+* `getf` - get values from fields. getf(fieldName, packageName)
+* `getProtoField` - get a field definition. getProtoField(fieldName, packageName)
+* `enumValue` - get an enum value. enumValue(fieldName, packageName)
+* `enumName` - get an enum name. enumName(fieldName, packageName)
 
 ## Services
 
@@ -279,7 +284,7 @@ Messages, Services and enums all have their descriptors available.
 
 ## Browser compabtibility
 
-Protob conatins a browser packed file `browser-protob.js`. Include that file on your page and you'll have the protob library.
+Protob conatins a browser-packed file `browser-protob.js`. Include that file on your page and you'll have the protob library.
 
 You'll still need to download and compile your protos.
 
@@ -306,8 +311,7 @@ Once you've parsed your protos, you need to compile them inside the browser:
 
       return promise;
 
-## Developing
-
+## Developing Protob
 Check out this repo and do:
 
     npm install
