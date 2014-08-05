@@ -184,6 +184,14 @@ describe("Message", function(){
       var thing = Stuff.decode(stuff.encode());
       Assert.deepEqual(Character.decode(thing.getf('bytes_value')), character);
     });
+    it('handles extension fields', function() {
+      ext = new Extendable();
+      ext.setf('hai there', 'msg', 'test.fox.simpsons');
+
+      var thing = Extendable.decode(ext.encode());
+      Assert.equal(thing.getf('msg', 'test.fox.simpsons'), 'hai there');
+
+    });
   });
 
   describe('field extensions', function() {

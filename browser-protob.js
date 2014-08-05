@@ -2,9 +2,9 @@ require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ
 exports.Protob    = require('./lib/protob').Protob
 exports.Compiler  = require('./lib/compiler').Compiler
 exports.Message   = require('./lib/message').Message
+exports.Service   = require('./lib/service').Service;
 exports.Enum      = require('./lib/enum').Enum;
 exports.EnumValue = require('./lib/enum').EnumValue;
-exports.Service   = require('./lib/service').Service;
 exports.stevenInit   = require('./lib/steven_init');
 
 exports.Compiler.compile(); // compile the base protos
@@ -203,7 +203,7 @@ Compiler.prototype.compileEnum = function(enumDesc, pkg, descriptor) {
     registry()._addObject(fullName, obj);
   }
 
-  registry()._fetch(fullName).updateDescriptor(enumDesc);
+  registry().lookup(fullName).updateDescriptor(enumDesc);
 };
 
 /**
@@ -244,7 +244,7 @@ Compiler.prototype.compileMessage = function(messageDesc, pkg, descriptor) {
     registry()._addObject(fullName, nmessage);
   }
 
-  registry()._fetch(fullName).fileDescriptor = descriptor;
+  registry().lookup(fullName).fileDescriptor = descriptor;
 
   var messageExtensions = messageDesc[descriptorProto.EXTENSION];
 
@@ -262,7 +262,7 @@ Compiler.prototype.compileMessage = function(messageDesc, pkg, descriptor) {
     });
   }
 
-  registry()._fetch(fullName).updateDescriptor(messageDesc);
+  registry().lookup(fullName).updateDescriptor(messageDesc);
 }
 
 /**
@@ -292,8 +292,8 @@ Compiler.prototype.compileService = function(serviceDesc, pkg, descriptor) {
     registry()._addObject(fullName, nservice);
   }
 
-  registry()._fetch(fullName).fileDescriptor = descriptor;
-  registry()._fetch(fullName).updateDescriptor(serviceDesc);
+  registry().lookup(fullName).fileDescriptor = descriptor;
+  registry().lookup(fullName).updateDescriptor(serviceDesc);
 };
 
 },{"./compiler/google-protos-defn":7,"./enum":8,"./message":10,"./registry":12,"./service":13,"./util":15,"fs":17,"glob":42,"path":27,"util":37}],4:[function(require,module,exports){
@@ -919,7 +919,7 @@ var encoders = {
    */
   TYPE_ENUM: function(field, value, buffer) {
     if(value instanceof EnumValue) {
-      buffer.writeVarint32(value[goog.enumValueDescriptorProto.NUMBER]);
+      buffer.writeVarint32(value.number);
     } else {
       buffer.writeVarint32(value);
     }
@@ -1013,6 +1013,8 @@ var encoders = {
 exports.encoders = encoders;
 
 },{"../enum":8,"../protob":11,"./google-protos-defn":7}],7:[function(require,module,exports){
+// Need to map the numbers for known google protobuf messages
+// so that we can compile the initial protocol buffers
 module.exports = {
   fileDescriptorSet: {
     FILE: 1
@@ -2290,12 +2292,14 @@ var _ = require('underscore'),
  * @constructor
  *
  * @example
- *    var MyMessage = Protob.v.my.scope.MyMessage;
- *
- *    MyMessage.prototype.helpMe = function() { return 'help'; }
+ *    var MyMessage = Protob.registry.lookup('some.package.MyMessage');
  *
  *    var myMessage = new MyMessage({with: "some", field: "values"});
- *    myMessage.helpMe(); // 'help'
+ *    myMessage.getf('some_field');
+ *    myMessage.getf('some_field', 'from_some_package');
+ *    myMessage.setf('a value', 'some_field');
+ *    myMessage.setf('a value', 'some_field', 'from_some_package');
+ *    myMessage.asJSON();
  */
 function Message(opts) {
   opts = opts || {};
@@ -2317,47 +2321,52 @@ function Message(opts) {
 
 /**
  * A collection of functions to run after each message is initialized. This is global to all Messages.
+ * Each individual message class will also get afterInitialize array that will be run on each create
+ * Be careful setting these. These are run on every instantiation of protobuf messages
+ * @public
  */
 Message.afterInitialize = [];
 
 /**
  * When a protocol buffer is compiled from .json A new message class is created by inheriting from Message.
  * The updateDescriptor is then called with the raw descriptor that came from the .json file.
- * This descriptor maps to a google.protobuf.DescriptorProto
+ * This descriptor maps to a google.protobuf.DescriptorProto using field ids as the keys fo the object
  *
  * Update descriptor augments the constructor function with information about
  *
- * <ul>
- *    <li>The Descriptor</li>
- *    <li>The name of the message</li>
- *    <li>The full name including package</li>
- *    <li>Attaches any extensions</li>
- *    <li>Attaches any options</li>
- *    <li>Adds some indecies for looking up field definitions</li>
- *    <li>Updates the reset, encode, decode and finalize methods on the constructor</li>
- *  </ul>
+ * Do not call this method directly
  *
- * You shouldn't call this directly.
- *
- * @param {object} desc - The descriptor. A Javascript version of google.protobuf.DescriptorProto
- * @protected
+ * @param {object} desc - An instance of google.protobuf.DescriptorProto
+ * @private
  */
 Message.updateDescriptor = function(desc) {
   var self = this,
       dp = goog.descriptorProto;
-  this.descriptor     = desc;
-  this.clazz          = desc[dp.NAME];
-  this.extensions     = this.extension;
-  this.fullName       = this.parent + "." + this.clazz;
-  this.extensionRange = desc[dp.EXTENSION_RANGE];
-  this.options        = desc[dp.OPTIONS];
 
-  this.reset    = Message.reset;
+  /** @member {google.protobuf.DescriptorProto} - the descriptor defining this message */
+  this.descriptor = desc;
+
+  /** @member {string} - the name of the object. This is the final name only and does not include package information */
+  this.clazz = desc[dp.NAME];
+
+  // TODO remove this if we don't need it
+  // this.extensions     = this.extension;
+
+  /** @member {string} - The full name, including package of this object */
+  this.fullName       = this.parent + "." + this.clazz;
+
+  this.reset = Message.reset;
   this.reset();
 
   this.finalize = Message.finalize;
-  this.decode   = Message.decode;
-  this.encode   = Message.encode;
+
+  /** Decodes messages for this class */
+  this.decode = Message.decode;
+
+  /** Encodes messages for this class */
+  this.encode = Message.encode;
+
+  // Add this message to to the finalizers so that we get a chance to finish up at the end of the compilation
   registry._addFinalize(this.fullName);
 };
 
@@ -2366,14 +2375,22 @@ Message.updateDescriptor = function(desc) {
  * @private
  */
 Message.reset = function() {
+  /** @member {object} - A map of fields by id */
   this.fieldsById   = {};
+
+  /** @member {object} - A map of fields by package */
   this.fieldsByPkg  = {};
+
+  /** @member {array} - A collection of fields in ascending id order */
   this.orderedFields = this.orderedFields;
+
+  this.prototype.setDefaults = Message.prototype.setDefaults;
 };
 
 /**
  * Expands out all descriptors on this message
  * Looks at the type of the message, and attaches the relevant constructor to the descriptor
+ * @param {google.protobuf.DescriptorProto} descriptor - The descriptor proto for the message
  * @private
  */
 function expandDescriptors(descriptor) {
@@ -2425,6 +2442,7 @@ Message.finalize = function() {
 
   this.reset();
 
+  // index each field by package
   if ( fields && Array.isArray(fields) ) {
     fields.forEach(function(field) {
       var number = field[fd.NUMBER],
@@ -2443,6 +2461,8 @@ Message.finalize = function() {
       }
     });
 
+    // Setup the ordered fields so that they are able
+    // to be laid out on the wire
     this.orderedFields = fields.sort(function(a, b) { 
       var _a = a[fd.NUMBER],
           _b = b[fd.NUMBER];
@@ -2536,7 +2556,7 @@ Message.prototype.setf = function(value, fieldNameOrNumber, pkg) {
 
     if(label && label.number) label = label.number;
 
-    if(label == fd.label.LABEL_REPEATED) {
+    if(field.repeated) { //label == fd.label.LABEL_REPEATED) {
       this[id] = [];
       if(!value) return;
       if(!Array.isArray(value)) value = [value];
@@ -2574,7 +2594,7 @@ Message.prototype.isFieldSet = function(fieldNameOrNumber, pkg) {
   var field = this.getProtoField(fieldNameOrNumber, pkg),
       fd = goog.fieldDescriptorProto;
 
-  if(!field) return undefined;
+  if(!field) return false;
   return this.hasOwnProperty(field[fd.NUMBER]);
 }
 
@@ -2584,21 +2604,18 @@ Message.prototype.isFieldSet = function(fieldNameOrNumber, pkg) {
  */
 Message.prototype.getProtoField = function(nameOrNumber, pkg) {
   var constructor = this.constructor,
-      fd = goog.fieldDescriptorProto,
-      field;
+      fd = goog.fieldDescriptorProto;
 
   if(constructor.fieldsById[nameOrNumber]) return constructor.fieldsById[nameOrNumber];
 
-  if(pkg) {
-    if(!constructor.fieldsByPkg[pkg]) throw new Error('Package ' + pkg + ' not found for ' + this.constructor.fullName);
-    field = constructor.fieldsByPkg[pkg].filter(function(f) {
-      return f[fd.NUMBER] == nameOrNumber || f[fd.NAME] == nameOrNumber;
-    })[0];
-  } else {
-    field = constructor.orderedFields.filter(function(f) { return f[fd.NAME] == nameOrNumber })[0];
-  }
-  return field;
-}
+  pkg = pkg || undefined;
+
+  if(!constructor.fieldsByPkg[pkg]) throw new Error('Package ' + pkg + ' not found for ' + this.constructor.fullName);
+
+  return constructor.fieldsByPkg[pkg].filter(function(f) {
+    return f[fd.NUMBER] == nameOrNumber || f[fd.NAME] == nameOrNumber;
+  })[0];
+};
 
 /**
  * Fetches the full EnumValue for a field given it's current value.
@@ -2652,33 +2669,17 @@ Message.prototype.setDefaults = function(){
   if(!this.constructor.descriptor) { return; }
   if(!this.constructor.descriptor[dp.FIELD]) { return; }
 
-  var fields = this.constructor.descriptor[dp.FIELD] || [];
-
-  for(var i=0; i<fields.length; i++){
-    if(this.isFieldSet(fields[i][fd.NUMBER])) continue;
-    if(fields[i][fd.DEFAULT_VALUE] == undefined) continue;
-    this.setf(fields[i][fd.DEFAULT_VALUE], fields[i][fd.NUMBER]);
-  }
-};
-
-/**
- * Coorce and return only values defined in the protobuf definition
- *
- * @param {object} opts - Options
- * @param {array} [opts.extensions] - An array of package names. Any extensions that are found, that are not in the extensions list are excluded. By default, all fields are included
- * @return {Protob.Message} - The fully coorced message
- */
-Message.prototype.protoValues = function(opts){
-  var self = this,
-      out = {};
-
-  Object.keys(this.constructor.fieldsById).forEach(function(id) {
-    if(self.hasOwnProperty(id)) {
-      out = self[id];
-    }
+  var fields = (this.constructor.orderedFields || []).filter(function(f) {
+    return f.hasOwnProperty(fd.DEFAULT_VALUE);
   });
 
-  return new this.constructor(out);
+  this.constructor.prototype.setDefaults = function() {
+    for(var i=0; i<fields.length; i++){
+      if(this.isFieldSet(fields[i][fd.NUMBER])) continue;
+      this.setf(fields[i][fd.DEFAULT_VALUE], fields[i][fd.NUMBER]);
+    }
+  };
+  this.setDefaults();
 };
 
 /**
@@ -2847,6 +2848,7 @@ Message.prototype.decode = function(buffer, length, opts) {
         }
       continue;
     }
+
     if (field.repeated && (!field[fd.OPTIONS] || !field[fd.OPTIONS][fo.PACKED])) {
       msg[field[fd.NUMBER]] = msg[field[fd.NUMBER]] || [];
       msg[field[fd.NUMBER]].push(decoders.field(wireType, buffer, false, field, opts));
@@ -2856,22 +2858,21 @@ Message.prototype.decode = function(buffer, length, opts) {
   }
 
   // Check if all required fields are present
-  var LABEL = registry.lookup('google.protobuf.FieldDescriptorProto.Label');
   this.constructor.orderedFields.forEach( function(field) {
-    if ( LABEL.fetch(field[fd.LABEL]) != LABEL.fetch("LABEL_REQUIRED")) { return; }
-    if ( msg[field[fd.NUMBER]] === undefined || msg[field[fd.NUMBER]] === null ){
-      var err = new Error("Missing field "+field[fd.NAME]);
+    if(field.required && !msg.isFieldSet(field[fd.NUMBER])) {
+      var err = new Error("Missing field `"+field[fd.NAME]+"`");
       err.decoded = msg;
       throw err;
     }
+
     var TYPE  = registry.lookup('google.protobuf.FieldDescriptorProto.Type'),
         dp = goog.descriptorProto,
         evd = goog.enumValueDescriptorProto,
         type = TYPE.fetch(field[fd.TYPE]);
 
     // convert the default_value (if any) to the proper type
-    if (field[fd.DEFAULT_VALUE] && type.name != 'TYPE_ENUM' && type.name != 'TYPE_MESSAGE') {
-      msg[field[field.NUMBER]] = coorcers[type.name](msg[field[fd.NAME]]).call(self, field[fd.DEFAULT_VALUE]);
+    if (field[fd.DEFAULT_VALUE] && type.name != 'TYPE_ENUM' && type.name != 'TYPE_MESSAGE' && !msg.isFieldSet(field[fd.NUMBER])) {
+      msg[field[fd.NUMBER]] = coorcers[type.name](msg[field[fd.NAME]]).call(self, field[fd.DEFAULT_VALUE]);
     }
 
   });
@@ -2880,7 +2881,6 @@ Message.prototype.decode = function(buffer, length, opts) {
 
 /**
  * Encode a protocol buffer message.
- * Before encoding, it will ensure consistency by calling Message#protoValues
  *
  * Usually used by calling the instance version
  *
@@ -2927,8 +2927,9 @@ Message.prototype.encode = function(buffer) {
       fd = goog.fieldDescriptorProto,
       fieldEncoder = encoders.field;
 
+  // Ensure required fields are present before encoding
   fields.forEach(function(field) {
-    if( field.required && (self[field[fd.NUMBER]] === undefined || self[field[fd.NUMBER]] === null )) {
+    if(field.required && !self.isFieldSet(field[fd.NUMBER])) {
       var err = new Error("Missing at least one required field for "+self.constructor.fullName+": "+field[fd.NAME]);
       throw(err);
     }
@@ -2954,14 +2955,13 @@ exports.Message = Message;
  *
  * <ul>
  *   <li>Converting .proto files to json definitions using protoc</li>
- *   <li>Fast loading</li>
+ *   <li>Dynamic loading</li>
  *   <li>64 bit support (Long.js && ByteBuffer.js)</li>
  *   <li>Reflection and introspection</li>
- *   <li>Dynamic reloading of proto definitions</li>
  *   <li>Messages</li>
  *   <li>Enums</li>
  *   <li>Services</li>
- *   <li>Exposes extensions but does not support extended messages (yet)</li>
+ *   <li>Extensions</li>
  * </ul>
  *
  * RPC handling is outside the scope of Protob. These schemes vary wildly between usecases and so should be implmeneted at a different layer.
@@ -3178,6 +3178,10 @@ Protob.registry = exports.registry;
 }).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{"./registry":12,"./version":16,"bytebuffer":38,"path":27}],12:[function(require,module,exports){
 (function (global){
+/**
+ * Maintains a registry of all known protocol buffer object definitions.
+ * This registry is a global registry that spans versions. Protob should be included at the top level
+ */
 var cache, REGISTRY,
     goog = require('./compiler/google-protos-defn');
 
@@ -3193,12 +3197,20 @@ if(cache.registry) {
   module.exports = cache.registry;
   return;
 } else {
-  var registry = {}, 
-      extensions = {}, 
+  var registry = {},
+      extensions = {},
       awaitingFinalizers = [];
 
+  /**
+   * The registry of all protocol buffer objects that have been compiled
+   * @constructor
+   */
   function Registry() { }
 
+  /**
+   * Resets the registry and clears all related information. Useful for testing.
+   * @private
+   */
   Registry.prototype.reset = function() {
     awaitingFinalizers = [];
     registry = {};
@@ -3207,19 +3219,52 @@ if(cache.registry) {
     this.compileGoogleDescriptors();
   }
 
+  /**
+   * Provides a scope for accessing information from the registry. 
+   * This is a convenience and does not need to be used
+   * Scopes can be created before anything is registered, and is only evealuated when a lookup is performed
+   * @example
+   *    myPackage = registry.scope('my.package')
+   *    NestedObject = myPackage.lookup('some.NestedObject');
+   *
+   * @param {string} name - The name of the package to create the scope for. Can be a sub package if coming from another scope
+   * @param {Scope} parentScope - The parent scope to create this scope from
+   * @constructor
+   */
   function Scope(name, parentScope) {
     if(parentScope) {
       this.name = [parentScope.name, name].join('.');
     } else {
+      /** @member {string} - the name of the scope */
       this.name = name;
     }
   }
 
+  /**
+   * Create a new scope based off this one. This will be a child scope of the current scope
+   * @param {string} name - The name of the sub-scope to create
+   * @example
+   *     scope = myScope.scope('other.package')
+   * @public
+   */
   Scope.prototype.scope = function(name) { return new Scope(name, this); };
+
+  /**
+   * Lookup an object stored in the registry using the current scope as the starting place
+   * @param {string} name - The name of the object within this scope
+   * @example
+   *  scope = registry.scope('my.scope')
+   *  scope.lookup('MyObject') // fetch my.scope.MyObject
+   * @public
+   */
   Scope.prototype.lookup = function(name) { 
     return REGISTRY.lookup([this.name, name].join('.'));
   };
 
+  /**
+   * List all keys in the registry under the current scope
+   * @public
+   */
   Scope.prototype.keys = function() {
     var keys = [],
         self = this,
@@ -3232,30 +3277,57 @@ if(cache.registry) {
     return keys;
   };
 
+  /**
+   * List all keys in the registry under the current scope, but retain their full scope
+   * @public
+   */
   Scope.prototype.fullKeys = function() {
     var keys = this.keys(),
         self = this;
 
-    return keys.map(function(k) { 
-      return (self.name ? self.name + '.' + k : k);
-    });
+    return keys.map(function(k) { return (self.name ? self.name + '.' + k : k); });
   };
 
   /**
-   * @api public
+   * Lookup an object in the registry
+   * @example
+   *     registry.lookup('my.package.MyObject');
+   *
+   * @return - an object from the registry if present, or undefined
+   * @public
    */
   Registry.prototype.lookup = function(name) {
     if(!awaitingFinalizers.length) this._finalize();
     return registry[name];
   };
 
+  /**
+   * Shorthand for the lookup method
+   * @see Registry#lookup
+   * @public
+   */
   Registry.prototype.l = function(name) { return this.lookup(name); };
+
+  /**
+   * Shorthand for the scope method
+   * @see Registry#scope
+   * @public
+   */
   Registry.prototype.s = function(name) { return this.scope(name); };
 
+  /**
+   * Create a scope for the given name
+   * @example
+   *     scope = registry.scope('some.name')
+   *     MyObject = scope.lookup('MyObject');
+   * @public
+   */
   Registry.prototype.scope = function(name) { return new Scope(name); }
 
   /**
-   * @api public
+   * Registers a set of descriptors into the registry.
+   * @param {Array<Object>} descriptors - The objects must conform to google.protobuf.FileDescriptorProto using field numbers as keys
+   * @public
    */
   Registry.prototype.register = function(descriptors) {
     var compiler = require('./compiler').Compiler;
@@ -3263,21 +3335,24 @@ if(cache.registry) {
   };
 
   /**
-   * @api public
+   * List all keys in the registry
+   * @public
    */
-  Registry.prototype.keys = function() {
-    return Object.keys(registry);
-  }
+  Registry.prototype.keys = function() { return Object.keys(registry); }
 
   /**
-   * @api public
+   * Check if a given key is present in the registry
+   * @param {string} name - The full path of the protobuf object to check
+   * @return boolean - Presence of the key
+   * @public
    */
-  Registry.prototype.has = function(name) {
-    return registry.hasOwnProperty(name);
-  }
+  Registry.prototype.has = function(name) { return registry.hasOwnProperty(name); }
 
   /**
-   * @api private
+   * Finalizes the objects in the registry if they are awaiting finalization
+   * i.e. if they have just been added.
+   * @param {boolean} force - Force the finalization. By default, it will only run if there is anything to run.
+   * @private
    */
   Registry.prototype._finalize = function(force) {
     if(!force && !awaitingFinalizers.length) return;
@@ -3289,29 +3364,33 @@ if(cache.registry) {
     awaitingFinalizers = [];
   };
 
+  /**
+   * Add an object to be finalized. 
+   * This happens when each new object is added to the registry,
+   * or when they are extended.
+   * @param {string} name - The name of the thing to finalize
+   * @private
+   */
   Registry.prototype._addFinalize = function(name) {
     awaitingFinalizers = awaitingFinalizers || [];
     if(awaitingFinalizers.indexOf(name) < 0) awaitingFinalizers.push(name);
   }
 
   /**
-   * @api private
+   * Add a protocol buffer object to the registry by name
+   * @param {string} name - The name of the object for the registry
+   * @param {Object} protobufObject - The object to store in the registry
+   * @private
    */
-  Registry.prototype._addObject = function(name, protobuffObject) {
+  Registry.prototype._addObject = function(name, protobufObject) {
     this._addFinalize(name);
-    registry[name] = protobuffObject;
+    registry[name] = protobufObject;
   };
 
   /**
-   * @api private
-   */
-  Registry.prototype._fetch = function(name) {
-    return registry[name];
-  }
-
-
-  /**
-   * @api private
+   * Adds an extension to be compiled when the objects are finalized.
+   * @param {google.protobuf.FieldDescriptorProto} ext - The field extension to apply
+   * @private
    */
   Registry.prototype._addExtension = function(ext) {
     var fd = goog.fieldDescriptorProto,
@@ -3322,10 +3401,12 @@ if(cache.registry) {
     extensions[key] = ext;
   };
 
-  Registry.prototype.extensions = function() { return extensions; };
+  // TODO: remove if not needed
+  // Registry.prototype.extensions = function() { return extensions; };
 
   /**
-   * @api private
+   * Apply any existing extensions to the objects in the reigstry. Also clear out the extensions so they're not doubly applied
+   * @private
    */
   Registry.prototype._applyExtensions = function() {
     var self = this,
@@ -3350,12 +3431,17 @@ if(cache.registry) {
   };
 
   /**
-   * @private
+   * Check to see if the google descriptors have been compiled
+   * @protected
    */
   Registry.prototype.googleDescriptorsCompiled = function() {
     this.googleCompiled = true;
   }
 
+  /**
+   * Compile the google descriptors. This must be done as the first step and is done automatically
+   * @private
+   */
   Registry.prototype.compileGoogleDescriptors = function() {
     if(this.googleCompiled) return;
     this.register(require('./google_descriptors'));
@@ -3394,40 +3480,41 @@ var SERVICE = "SERVICE",
  *
  * The service defines methods that have an input and output type and are available on the constructor
  *
+ * The service has a descriptor that is of type google.protobuf.ServiceDescriptorProto
+ *
  * @example
  *
- *    MyService = Protob.registry['my.service.Service'];
- *    methods = MyService.methods;
- *    methods.name
- *    methods.inputType
- *    methods.outputType
- *    methods.options
+ *    MyService = Protob.registry.lookup('my.service.Service');
+ *    methods = MyService.methods; // An object describing the methods available for the service keyed by method name
+ *    method = methods.MyMethod
+ *    method.inputType  // The constructor for the input type of the rpc method
+ *    method.outputType // the constructor for the output type of the rpc method
+ *    method.getf('options').asJSON() // Show the options as a POJO
  *
  * @constructor
  */
-var Service = function() { };
+var Service = function() {};
 
 /**
  * Updates the descriptor for this service.
  * This also sets up some information on the constructor that can be used for introspection.
  *
  * @param {object} desc - The Json verion of the google.protobuf.DescriptorProto
- *
+ * @private
  */
 Service.updateDescriptor = function(desc) {
   var sd = goog.serviceDescriptorProto;
   /** @member {string} - The type of service is 'SERVICE' */
-  this.type           = SERVICE;
+  this.type = SERVICE;
 
   /** @member {object} - The descriptor is cached for introspection */
-  this.descriptor     = desc;
+  this.descriptor = desc;
 
   /** @member {string} - The name of the message */
-  this.clazz          = desc[sd.NAME];
+  this.clazz = desc[sd.NAME];
 
   /** @member {string} - The full protobuf name including package */
-  this.fullName       = this.parent + "." + desc[sd.NAME];
-  this.options        = desc[sd.OPTIONS];
+  this.fullName = this.parent + "." + desc[sd.NAME];
   this.reset = Service.reset;
   this.finalize = Service.finalize;
   this.reset();
@@ -3452,13 +3539,10 @@ Service.finalize = function() {
 
   if ( this.descriptor && Array.isArray(this.descriptor[sd.METHOD]) ) {
     this.descriptor[sd.METHOD].forEach(function(method) {
-      method[md.INPUT_TYPE] = registry.lookup(method[md.INPUT_TYPE].replace(/^\./, ''));
-      method[md.OUTPUT_TYPE] = registry.lookup(method[md.OUTPUT_TYPE].replace(/^\./, ''));
-
       self.methods[method[md.NAME]] = method;
       method.name = method[md.NAME];
-      method.inputType = method[md.INPUT_TYPE];
-      method.outputType = method[md.OUTPUT_TYPE];
+      method.inputType = registry.lookup(method[md.INPUT_TYPE].replace(/^\./, ''));
+      method.outputType = registry.lookup(method[md.OUTPUT_TYPE].replace(/^\./, ''));
     });
   }
 };
