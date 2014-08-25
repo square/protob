@@ -1,0 +1,39 @@
+{
+  "name": "protob",
+  "version": "1.0.0",
+  "description": "Protocol Buffers",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/square/protob.git"
+  },
+  "scripts": {
+    "test": "mocha --recursive",
+    "docs": "jsdoc -c jsdoc.json",
+    "browser-pack": "browserify -r through -r duplexer -r ./index.js:protob > browser-protob.js"
+  },
+  "bin": {
+    "protob": "./bin/protob",
+    "protoc-gen-json": "./bin/protoc-gen-json"
+  },
+  "browser": {
+    "bluebird": "es6-promise"
+  },
+  "author": "Daniel Neighman",
+  "license": "Apache 2.0",
+  "dependencies": {
+    "bluebird": "~2.2.2",
+    "bytebuffer": "2.3.2",
+    "glob": "~3.2.7",
+    "optimist": "~0.6.0",
+    "underscore": "~1.5.2",
+    "rimraf": "~2.2.6"
+  },
+  "devDependencies": {
+    "browserify": "^3.43.0",
+    "mocha": "~1.14.0",
+    "es6-promise": "~1.0.0",
+    "through": "*",
+    "duplexer": "*"
+  }
+}
