@@ -1,0 +1,31 @@
+package test.common;
+
+import "google/protobuf/descriptor.proto";
+
+enum Gender {
+  FEMALE = 1;
+  MALE   = 2;
+}
+
+message Extendable {
+  optional string name = 1;
+
+  /** some extensions */
+  extensions 1000 to 1099;
+}
+
+message MyFieldExtension {
+  optional string nick = 1;
+}
+
+extend google.protobuf.FieldOptions {
+  optional MyFieldExtension my_ext = 2014;
+}
+
+extend google.protobuf.ServiceOptions {
+  optional MyFieldExtension service_ext = 2014;
+}
+
+extend google.protobuf.MethodOptions {
+  optional MyFieldExtension method_ext = 2014;
+}

@@ -1,0 +1,8 @@
+[
+  {
+     "local": "./test/protos",
+     "paths": {
+       "/" : ["test/common.proto", "test/amc", "test/fox", "google"]
+     }
+  }
+]
