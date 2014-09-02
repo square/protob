@@ -3306,14 +3306,15 @@ Protob.ByteBuffer = ByteBuffer;
  * @expose
  */
 
-exports.Protob = Protob;
-exports.ByteBuffer = ByteBuffer;
+module.exports.Protob = Protob;
+module.exports.ByteBuffer = ByteBuffer;
+module.exports.registry = require('./registry');
+module.exports.Compiler = require('./compiler');
 
-exports.registry = require('./registry');
 Protob.registry = exports.registry;
 
 }).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./registry":12,"./version":16,"bytebuffer":38,"path":26}],12:[function(require,module,exports){
+},{"./compiler":3,"./registry":12,"./version":16,"bytebuffer":38,"path":26}],12:[function(require,module,exports){
 (function (global){
 /**
  * Maintains a registry of all known protocol buffer object definitions.
@@ -3342,7 +3343,9 @@ if(cache.registry) {
    * The registry of all protocol buffer objects that have been compiled
    * @constructor
    */
-  function Registry() { }
+  function Registry() {
+    this.aliases = {};
+  }
 
   /**
    * Resets the registry and clears all related information. Useful for testing.
@@ -3461,8 +3464,18 @@ if(cache.registry) {
    */
   Registry.prototype.lookup = function(name) {
     if(!awaitingFinalizers.length) this._finalize();
-    return registry[name];
+    return registry[name] || registry[this.aliases[name]];
   };
+
+  /**
+   * Alias an object in the registry
+   * @param {string} aliasName - The alias you'd like to use
+   * @param {string} fullName - The full name of the object
+   */
+  Registry.prototype.alias = function(aliasName, fullName) {
+    if(this.aliases.hasOwnProperty(aliasName)) throw new Error("Alias already exists " + aliasName);
+    this.aliases[aliasName] = fullName;
+  }
 
   /**
    * Shorthand for the lookup method
@@ -3850,7 +3863,7 @@ exports.Util = {
 };
 
 },{}],16:[function(require,module,exports){
-module.exports = "0.4.2";
+module.exports = "1.1.2";
 
 },{}],17:[function(require,module,exports){
 
