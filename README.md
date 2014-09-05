@@ -153,7 +153,7 @@ For this reason, when you're getting your message `asJSON`, you can specify some
 
     myMessage.asJSON({
       extensions: ['some.extension'], // this will only use extensions from the 'some.extension' package and ignore all other extensions. If not set, all set fields are used and can result in collisions.
-      longsAsInts: true, // defaults to false (longs are represented as strings). Trucates longs to ints.
+      longsAsInts: true, // defaults to false (longs are represented as strings). Truncates longs to ints.
       fieldsAsNumbers: true, // defaults to false. Rather than using names for fields in the JSON output, it will use the field numbers
       enumsAsValues: true // defaults to false. Rather than using enum names, output enums as their tag numbers
     });
