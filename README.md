@@ -235,7 +235,7 @@ On the server, use services to receive requests and fulfil the response, on the 
       return { response: 'object' };
     });
 
-Service methods always return a promise (from the q library). So using a service method, on the server or client is simple. Return a promise or a raw object.
+Service methods return a promise. So using a service method, on the server or client is simple. Return a promise or a raw object.
 
     service = new MyService();
 
@@ -245,6 +245,15 @@ Service methods always return a promise (from the q library). So using a service
       return { some: 'response' } // coorced to the ouptut type, or construct an object of the ouptut type.
     }).catch(errorHandler);
 
+By default, a promise is always returned. There are some cases though where a future is better (console for example).
+
+    service = new MyService();
+
+    // response - An instance of the response type that will be expanded when the data is available.
+    var response = service.MyMethod({some: 'request'}, { future: true });
+
+    response.isFulfilled // returns true if fulfilled
+    response.asPromised // A promise that will be fulfilled
 
 These services are very useful on the server side to construct APIs with strong contracts even if they're not served to clients. By using services you can strictly enforce a particular API internally in your code. Very useful when that API is interacting with external APIs or providing services over http. 
 

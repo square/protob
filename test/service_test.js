@@ -87,7 +87,7 @@ describe('Service', function() {
         Assert.equal(res instanceof method.outputType, true);
         done();
       }).catch(done);
-    })
+    });
 
     it('does not coorce output if it is the correct type', function(done) {
       var response;
@@ -99,6 +99,37 @@ describe('Service', function() {
       service.SomeMethod()
       .then(function(res) {
         Assert.equal(res === response, true);
+        done();
+      }).catch(done);
+    });
+
+    it('returns a future when returning an simple object', function(done) {
+      var response;
+      MyService.handler('SomeMethod', function(req) {
+        return { string_value: 'some value' };
+      });
+
+      response = service.SomeMethod({}, { future: true })
+      response.asPromised.then(function(res) {
+        Assert.equal(res === response, true);
+        Assert.equal(response.getf('string_value'), 'some value');
+        done();
+      }).catch(done);
+    });
+
+    it('returns a future when returning a complex object', function(done) {
+      var response;
+
+      MyService.handler('SomeMethod', function(req) {
+        return new Stuff({ string_value: 'another value' });
+      });
+
+      response = service.SomeMethod({}, { future: true });
+      Assert.equal(response.isFulfilled, false);
+
+      response.asPromised.then(function(res) {
+        Assert.equal(res === response, true);
+        Assert.equal(response.getf('string_value'), 'another value');
         done();
       }).catch(done);
     });
