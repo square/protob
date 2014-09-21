@@ -1,6 +1,6 @@
 {
   "name": "protob",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "Protocol Buffers",
   "main": "index.js",
   "repository": {
