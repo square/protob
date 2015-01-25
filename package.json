@@ -17,7 +17,16 @@
     "protoc-gen-json": "./bin/protoc-gen-json"
   },
   "browser": {
-    "bluebird": "es6-promise"
+    "bluebird": "es6-promise",
+    "duplexer": false,
+    "optimist": false,
+    "glob": false,
+    "rimraf": false,
+    "fs": false,
+    "glob": false,
+    "through": false,
+    "mocha": false,
+    "browserify": false
   },
   "author": "Daniel Neighman",
   "license": "Apache 2.0",
@@ -26,7 +35,6 @@
     "bytebuffer": "2.3.2",
     "glob": "~3.2.7",
     "optimist": "~0.6.0",
-    "underscore": "~1.5.2",
     "rimraf": "~2.2.6"
   },
   "devDependencies": {

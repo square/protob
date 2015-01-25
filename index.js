@@ -6,4 +6,4 @@ exports.Enum      = require('./lib/enum').Enum;
 exports.EnumValue = require('./lib/enum').EnumValue;
 exports.stevenInit   = require('./lib/steven_init');
 
-exports.Compiler.compile(); // compile the base protos
+// exports.Compiler.compile(); // compile the base protos
